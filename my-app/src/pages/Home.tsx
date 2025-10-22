@@ -2,7 +2,11 @@ import { Link } from "react-router-dom";
 import React from "react";
 
 const Home: React.FC = () => {
-  const handleHover = (e: React.MouseEvent<HTMLAnchorElement>, color: string, scale: string) => {
+  const handleHover = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    color: string,
+    scale: string
+  ) => {
     e.currentTarget.style.backgroundColor = color;
     e.currentTarget.style.transform = scale;
   };
@@ -30,7 +34,7 @@ const Home: React.FC = () => {
           width: "90%",
         }}
       >
-        <h1 style={{ marginBottom: "1rem", color: "#1f2937" }}>🏋️‍♂️ Спортцентр</h1>
+        <h1 style={{ marginBottom: "1rem", color: "#1f2937" }}> Спортцентр</h1>
         <p style={{ color: "#4b5563", marginBottom: "2rem" }}>
           Добро пожаловать! Выберите нужный раздел:
         </p>
@@ -51,7 +55,7 @@ const Home: React.FC = () => {
             onMouseEnter={(e) => handleHover(e, "#1d4ed8", "scale(1.05)")}
             onMouseLeave={(e) => handleHover(e, "#2563eb", "scale(1)")}
           >
-            🏆 Выбрать секцию
+            Выбрать секцию
           </Link>
 
           <Link
@@ -68,7 +72,7 @@ const Home: React.FC = () => {
             onMouseEnter={(e) => handleHover(e, "#059669", "scale(1.05)")}
             onMouseLeave={(e) => handleHover(e, "#10b981", "scale(1)")}
           >
-            📓 Дневник тренировок
+            Дневник тренировок
           </Link>
 
           {/* Новые кнопки */}
@@ -86,7 +90,7 @@ const Home: React.FC = () => {
             onMouseEnter={(e) => handleHover(e, "#d97706", "scale(1.05)")}
             onMouseLeave={(e) => handleHover(e, "#f59e0b", "scale(1)")}
           >
-            ℹ️ О нас
+            О нас
           </Link>
 
           <Link
@@ -103,7 +107,7 @@ const Home: React.FC = () => {
             onMouseEnter={(e) => handleHover(e, "#7c3aed", "scale(1.05)")}
             onMouseLeave={(e) => handleHover(e, "#8b5cf6", "scale(1)")}
           >
-            📝 Регистрация
+            Регистрация
           </Link>
         </div>
       </div>
@@ -112,5 +116,3 @@ const Home: React.FC = () => {
 };
 
 export default Home;
-
-

@@ -43,6 +43,40 @@ def user_profile(username):
         return jsonify(user)
     return jsonify({"error": "Пользователь не найден"}), 404
 
+
+# 🔹 НОВЫЙ маршрут регистрации пользователя
+@users_bp.route('/users/register', methods=['POST'])
+def register_user():
+    """
+    Регистрация нового пользователя
+    ---
+    tags:
+      - Пользователи
+    parameters:
+      - name: body
+        in: body
+        required: true
+        schema:
+          properties:
+            username:
+              type: string
+            email:
+              type: string
+            password:
+              type: string
+    responses:
+      201:
+        description: Пользователь успешно зарегистрирован
+    """
+    data = request.json
+    new_user = {
+        "username": data.get("username"),
+        "email": data.get("email")
+    }
+    users.append(new_user)
+    return jsonify({"message": "Пользователь зарегистрирован!", "user": new_user}), 201
+
+
 @users_bp.route('/login', methods=['GET', 'POST'])
 def login():
     """
