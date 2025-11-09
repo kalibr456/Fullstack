@@ -1,13 +1,26 @@
-from flask import request
-from app import app
-from flasgger.utils import swag_from
+from flask import Flask, request, jsonify
+from flasgger import Swagger, swag_from
+
+app = Flask(__name__)
+swagger = Swagger(app)
 
 @app.route('/')
 def home():
-    """Главная страница API"""
-    return {"message": "API Спортцентра работает!"}
+    """
+    Главная страница API
+    ---
+    tags:
+      - Главная
+    responses:
+      200:
+        description: Сообщение о работе API
+        examples:
+          application/json: {"message": "API Спортцентра работает!"}
+    """
+    return jsonify({"message": "API Спортцентра работает!"})
 
-@app.route('/user/<username>')
+
+@app.route('/user/<string:username>', methods=['GET'])
 @swag_from({
     'tags': ['Пользователи'],
     'parameters': [
@@ -16,17 +29,35 @@ def home():
             'in': 'path',
             'type': 'string',
             'required': True,
-            'description': 'Имя пользователя'
+            'description': 'Имя пользователя, для которого запрашивается профиль'
         }
     ],
     'responses': {
         200: {
-            'description': 'Профиль пользователя',
+            'description': 'Профиль пользователя успешно получен',
             'examples': {
-                'application/json': {'username': 'Иван', 'status': 'Активен'}
+                'application/json': {
+                    'username': 'ivan',
+                    'status': 'Активен',
+                    'email': 'ivan@mail.com'
+                }
+            }
+        },
+        404: {
+            'description': 'Пользователь не найден',
+            'examples': {
+                'application/json': {'error': 'Пользователь не найден'}
             }
         }
     }
 })
 def user_profile(username):
-    return {'username': username, 'status': 'Активен'}
+    # Пример: имитация поиска пользователя
+    users = [
+        {"username": "ivan", "status": "Активен", "email": "ivan@mail.com"},
+        {"username": "anna", "status": "Активен", "email": "anna@mail.com"}
+    ]
+    user = next((u for u in users if u["username"] == username), None)
+    if user:
+        return jsonify(user)
+    return jsonify({"error": "Пользователь не найден"}), 404
