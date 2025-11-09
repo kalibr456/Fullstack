@@ -1,14 +1,9 @@
 from flask import Blueprint, jsonify, request
+from app import db
+from app.models import Section, User
 
 sections_bp = Blueprint('sections', __name__, url_prefix='/sections')
 
-sections = [
-    {"id": 1, "name": "Футбол"},
-    {"id": 2, "name": "Плавание"},
-    {"id": 3, "name": "Тяжелая атлетика"}
-]
-
-next_id = 4
 
 # GET: получить все секции
 @sections_bp.route('/', methods=['GET'])
@@ -21,17 +16,26 @@ def get_sections():
     responses:
       200:
         description: Список секций
-        examples:
-          application/json:
+        schema:
+          type: object
+          properties:
             sections:
-              - id: 1
-                name: "Футбол"
-              - id: 2
-                name: "Плавание"
-              - id: 3
-                name: "Тяжелая атлетика"
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    example: 1
+                  name:
+                    type: string
+                    example: "Футбол"
     """
-    return {"sections": sections}
+    sections = Section.query.all()
+    return jsonify({
+        "sections": [{"id": s.id, "name": s.name} for s in sections]
+    })
+
 
 # POST: добавить новую секцию
 @sections_bp.route('/', methods=['POST'])
@@ -54,17 +58,36 @@ def add_section():
     responses:
       201:
         description: Секция добавлена
-        examples:
-          application/json:
-            id: 4
-            name: "Йога"
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 4
+            name:
+              type: string
+              example: "Йога"
+      400:
+        description: Ошибка при добавлении секции
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Секция с таким именем уже существует"
     """
-    global next_id
     data = request.json
-    new_section = {"id": next_id, "name": data["name"]}
-    next_id += 1
-    sections.append(new_section)
-    return jsonify(new_section), 201
+    if not data or "name" not in data:
+        return jsonify({"error": "Не указано имя секции"}), 400
+
+    if Section.query.filter_by(name=data["name"]).first():
+        return jsonify({"error": "Секция с таким именем уже существует"}), 400
+
+    section = Section(name=data["name"])
+    db.session.add(section)
+    db.session.commit()
+    return jsonify({"id": section.id, "name": section.name}), 201
+
 
 # PUT: обновить секцию
 @sections_bp.route('/<int:section_id>', methods=['PUT'])
@@ -92,22 +115,33 @@ def update_section(section_id):
     responses:
       200:
         description: Секция обновлена
-        examples:
-          application/json:
-            id: 1
-            name: "Йога"
+        schema:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 1
+            name:
+              type: string
+              example: "Йога"
       404:
         description: Секция не найдена
-        examples:
-          application/json:
-            error: "Секция не найдена"
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Секция не найдена"
     """
-    data = request.json
-    section = next((s for s in sections if s["id"] == section_id), None)
+    section = Section.query.get(section_id)
     if not section:
         return jsonify({"error": "Секция не найдена"}), 404
-    section["name"] = data.get("name", section["name"])
-    return jsonify(section)
+
+    data = request.json
+    section.name = data.get("name", section.name)
+    db.session.commit()
+    return jsonify({"id": section.id, "name": section.name})
+
 
 # DELETE: удалить секцию
 @sections_bp.route('/<int:section_id>', methods=['DELETE'])
@@ -126,21 +160,29 @@ def delete_section(section_id):
     responses:
       200:
         description: Секция удалена
-        examples:
-          application/json:
-            message: "Секция Футбол удалена"
+        schema:
+          type: object
+          properties:
+            message:
+              type: string
+              example: "Секция Футбол удалена"
       404:
         description: Секция не найдена
-        examples:
-          application/json:
-            error: "Секция не найдена"
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Секция не найдена"
     """
-    global sections
-    section = next((s for s in sections if s["id"] == section_id), None)
+    section = Section.query.get(section_id)
     if not section:
         return jsonify({"error": "Секция не найдена"}), 404
-    sections = [s for s in sections if s["id"] != section_id]
-    return jsonify({"message": f"Секция {section['name']} удалена"})
+
+    db.session.delete(section)
+    db.session.commit()
+    return jsonify({"message": f"Секция {section.name} удалена"})
+
 
 # POST: регистрация пользователя в секцию
 @sections_bp.route('/register', methods=['POST'])
@@ -165,12 +207,46 @@ def register_section():
               example: "ivan"
     responses:
       200:
-        description: Успешная регистрация
-        examples:
-          application/json:
-            message: "Пользователь ivan записан в секцию Футбол"
+        description: Данные регистрации
+        schema:
+          type: object
+          properties:
+            user:
+              type: string
+              example: "ivan"
+            section:
+              type: string
+              example: "Футбол"
+      400:
+        description: Ошибка входных данных
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Не указаны обязательные поля"
+      404:
+        description: Пользователь или секция не найдены
+        schema:
+          type: object
+          properties:
+            error:
+              type: string
+              example: "Пользователь не найден"
     """
     data = request.json
-    return {"message": f"Пользователь {data['user']} записан в секцию {data['section']}"}
+    if not data or "user" not in data or "section" not in data:
+        return jsonify({"error": "Не указаны обязательные поля"}), 400
 
+    user = User.query.filter_by(username=data["user"]).first()
+    if not user:
+        return jsonify({"error": "Пользователь не найден"}), 404
 
+    section = Section.query.filter_by(name=data["section"]).first()
+    if not section:
+        return jsonify({"error": "Секция не найдена"}), 404
+
+    return jsonify({
+        "user": user.username,
+        "section": section.name
+    })

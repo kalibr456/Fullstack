@@ -11,6 +11,11 @@ const Home: React.FC = () => {
     e.currentTarget.style.transform = scale;
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    window.location.href = "/login"; // редирект на страницу логина
+  };
+
   return (
     <div
       style={{
@@ -32,15 +37,34 @@ const Home: React.FC = () => {
           textAlign: "center",
           maxWidth: "420px",
           width: "90%",
+          position: "relative",
         }}
       >
-        <h1 style={{ marginBottom: "1rem", color: "#1f2937" }}> Спортцентр</h1>
+        {/* Кнопка выхода */}
+        <button
+          onClick={handleLogout}
+          style={{
+            position: "absolute",
+            top: "1rem",
+            right: "1rem",
+            padding: "0.5rem 1rem",
+            backgroundColor: "#ef4444",
+            color: "white",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontWeight: "bold",
+          }}
+        >
+          Выйти
+        </button>
+
+        <h1 style={{ marginBottom: "1rem", color: "#1f2937" }}>Спортцентр</h1>
         <p style={{ color: "#4b5563", marginBottom: "2rem" }}>
           Добро пожаловать! Выберите нужный раздел:
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {/* Существующие кнопки */}
           <Link
             to="/sections"
             style={{
@@ -75,7 +99,6 @@ const Home: React.FC = () => {
             Дневник тренировок
           </Link>
 
-          {/* Новые кнопки */}
           <Link
             to="/about"
             style={{
@@ -91,23 +114,6 @@ const Home: React.FC = () => {
             onMouseLeave={(e) => handleHover(e, "#f59e0b", "scale(1)")}
           >
             О нас
-          </Link>
-
-          <Link
-            to="/register"
-            style={{
-              padding: "0.8rem",
-              borderRadius: "10px",
-              backgroundColor: "#8b5cf6",
-              color: "white",
-              textDecoration: "none",
-              fontWeight: "500",
-              transition: "transform 0.2s, background-color 0.3s",
-            }}
-            onMouseEnter={(e) => handleHover(e, "#7c3aed", "scale(1.05)")}
-            onMouseLeave={(e) => handleHover(e, "#8b5cf6", "scale(1)")}
-          >
-            Регистрация
           </Link>
         </div>
       </div>

@@ -28,7 +28,9 @@ function Register() {
       if (res.ok) {
         setMessage(`✅ ${data.message}`);
       } else {
-        setMessage(`❌ Ошибка: ${data.error || "Не удалось зарегистрироваться"}`);
+        setMessage(
+          `❌ Ошибка: ${data.error || "Не удалось зарегистрироваться"}`
+        );
       }
     } catch (error) {
       setMessage("❌ Ошибка соединения с сервером");
@@ -45,21 +47,27 @@ function Register() {
           placeholder="Имя"
           value={formData.username}
           onChange={handleChange}
-        /><br /><br />
+        />
+        <br />
+        <br />
         <input
           type="email"
           name="email"
           placeholder="Email"
           value={formData.email}
           onChange={handleChange}
-        /><br /><br />
+        />
+        <br />
+        <br />
         <input
           type="password"
           name="password"
           placeholder="Пароль"
           value={formData.password}
           onChange={handleChange}
-        /><br /><br />
+        />
+        <br />
+        <br />
         <button type="submit">Зарегистрироваться</button>
       </form>
 

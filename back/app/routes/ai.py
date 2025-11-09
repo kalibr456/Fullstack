@@ -1,17 +1,16 @@
 from flask import Blueprint, request, jsonify
+from app import db
+from app.models import Training  # используем модель Training
+from datetime import datetime
 
 ai_bp = Blueprint('ai', __name__, url_prefix='/ai')
 
-# Храним рекомендации в памяти (для примера)
-recommendations = []
-next_id = 1
-
-# CREATE + POST /ai/recommend
+# POST /ai/recommend — создать рекомендацию
 @ai_bp.route('/recommend', methods=['POST'])
 def recommend():
     """
     Получить рекомендацию по нагрузке и сохранить
-    --- 
+    ---
     tags:
       - AI
     parameters:
@@ -26,121 +25,108 @@ def recommend():
                 type: object
                 properties:
                   intensity:
+                    type: number
+                  user:
+                    type: string
+                  section:
+                    type: string
+                  duration:
                     type: number
     responses:
       201:
         description: Рекомендация создана
     """
-    global next_id
     data = request.json.get('trainings', [])
+    if not isinstance(data, list):
+        return jsonify({"error": "Поле 'trainings' должно быть списком"}), 400
+
     avg_intensity = sum(t.get('intensity', 0) for t in data) / len(data) if data else 0
 
-    if avg_intensity < 5:
+    if not data:
+        rec_text = "Добавьте хотя бы одну тренировку для анализа."
+    elif avg_intensity < 5:
         rec_text = "Можно увеличить нагрузку."
     elif avg_intensity > 8:
         rec_text = "Снизьте интенсивность, дайте мышцам восстановиться."
     else:
         rec_text = "Продолжайте в том же духе!"
 
-    rec = {
-        "id": next_id,
-        "trainings": data,
+    trainings_records = []
+    for t in data:
+        training = Training(
+            user=t.get('user', 'unknown'),
+            section=t.get('section', 'general'),
+            duration=t.get('duration', 0),
+            intensity=t.get('intensity', 0)
+        )
+        db.session.add(training)
+        trainings_records.append(training)
+
+    db.session.commit()  # сохраняем все тренировки
+
+    return jsonify({
+        "trainings": [
+            {
+                "id": tr.id,
+                "user": tr.user,
+                "section": tr.section,
+                "duration": tr.duration,
+                "intensity": tr.intensity
+            } for tr in trainings_records
+        ],
         "average_intensity": avg_intensity,
         "recommendation": rec_text
-    }
-    next_id += 1
-    recommendations.append(rec)
-    return jsonify(rec), 201
+    }), 201
 
-# READ: получить все рекомендации
+
+# GET /ai/recommendations — получить все тренировки
 @ai_bp.route('/recommendations', methods=['GET'])
 def get_recommendations():
-    """
-    Получить все рекомендации
-    ---
-    tags:
-      - AI
-    responses:
-      200:
-        description: Список рекомендаций
-    """
-    return jsonify({"recommendations": recommendations})
+    trainings = Training.query.all()
+    return jsonify({
+        "recommendations": [
+            {
+                "id": t.id,
+                "user": t.user,
+                "section": t.section,
+                "duration": t.duration,
+                "intensity": t.intensity
+            } for t in trainings
+        ]
+    })
 
-# UPDATE: изменить рекомендацию по id
+
+# PUT /ai/recommendations/<int:rec_id> — обновить тренировку
 @ai_bp.route('/recommendations/<int:rec_id>', methods=['PUT'])
 def update_recommendation(rec_id):
-    """
-    Обновить рекомендацию
-    ---
-    tags:
-      - AI
-    parameters:
-      - name: rec_id
-        in: path
-        type: integer
-        required: true
-      - name: body
-        in: body
-        required: true
-        schema:
-          properties:
-            trainings:
-              type: array
-              items:
-                type: object
-                properties:
-                  intensity:
-                    type: number
-    responses:
-      200:
-        description: Рекомендация обновлена
-      404:
-        description: Рекомендация не найдена
-    """
-    rec = next((r for r in recommendations if r["id"] == rec_id), None)
-    if not rec:
-        return jsonify({"error": "Рекомендация не найдена"}), 404
+    t = Training.query.get(rec_id)
+    if not t:
+        return jsonify({"error": "Тренировка не найдена"}), 404
 
-    data = request.json.get("trainings", [])
-    avg_intensity = sum(t.get('intensity', 0) for t in data) / len(data) if data else 0
+    data = request.json
+    t.user = data.get('user', t.user)
+    t.section = data.get('section', t.section)
+    t.duration = data.get('duration', t.duration)
+    t.intensity = data.get('intensity', t.intensity)
 
-    if avg_intensity < 5:
-        rec_text = "Можно увеличить нагрузку."
-    elif avg_intensity > 8:
-        rec_text = "Снизьте интенсивность, дайте мышцам восстановиться."
-    else:
-        rec_text = "Продолжайте в том же духе!"
+    db.session.commit()
 
-    rec.update({
-        "trainings": data,
-        "average_intensity": avg_intensity,
-        "recommendation": rec_text
+    return jsonify({
+        "id": t.id,
+        "user": t.user,
+        "section": t.section,
+        "duration": t.duration,
+        "intensity": t.intensity
     })
-    return jsonify(rec)
 
-# DELETE: удалить рекомендацию
+
+# DELETE /ai/recommendations/<int:rec_id> — удалить тренировку
 @ai_bp.route('/recommendations/<int:rec_id>', methods=['DELETE'])
 def delete_recommendation(rec_id):
-    """
-    Удалить рекомендацию
-    ---
-    tags:
-      - AI
-    parameters:
-      - name: rec_id
-        in: path
-        type: integer
-        required: true
-    responses:
-      200:
-        description: Рекомендация удалена
-      404:
-        description: Рекомендация не найдена
-    """
-    global recommendations
-    rec = next((r for r in recommendations if r["id"] == rec_id), None)
-    if not rec:
-        return jsonify({"error": "Рекомендация не найдена"}), 404
+    t = Training.query.get(rec_id)
+    if not t:
+        return jsonify({"error": "Тренировка не найдена"}), 404
 
-    recommendations = [r for r in recommendations if r["id"] != rec_id]
-    return jsonify({"message": "Рекомендация удалена"})
+    db.session.delete(t)
+    db.session.commit()
+    return jsonify({"message": "Тренировка удалена"})
