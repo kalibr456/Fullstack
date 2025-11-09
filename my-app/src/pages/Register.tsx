@@ -37,45 +37,111 @@ function Register() {
     }
   };
 
+  const styles = {
+    container: {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      minHeight: "100vh",
+      backgroundColor: "#f0f2f5",
+      fontFamily: "'Arial', sans-serif",
+    },
+    card: {
+      backgroundColor: "#fff",
+      padding: "40px",
+      borderRadius: "12px",
+      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
+      width: "100%",
+      maxWidth: "400px",
+      textAlign: "center" as const,
+    },
+    title: {
+      fontSize: "2rem",
+      marginBottom: "20px",
+      fontWeight: "bold" as const,
+      color: "#333",
+    },
+    input: {
+      width: "100%",
+      padding: "12px",
+      marginBottom: "15px",
+      borderRadius: "8px",
+      border: "1px solid #ccc",
+      fontSize: "1rem",
+    },
+    button: {
+      width: "100%",
+      padding: "12px",
+      backgroundColor: "#8b5cf6",
+      color: "#fff",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "1rem",
+      fontWeight: "bold" as const,
+      cursor: "pointer",
+    },
+    message: {
+      marginTop: "15px",
+      fontWeight: "bold" as const,
+    },
+    link: {
+      color: "#007bff",
+      textDecoration: "none",
+      fontWeight: "bold" as const,
+    },
+  };
+
   return (
-    <div style={{ textAlign: "center", padding: "2rem" }}>
-      <h1>Регистрация</h1>
-      <form style={{ marginTop: "1rem" }} onSubmit={handleSubmit}>
-        <input
-          type="text"
-          name="username"
-          placeholder="Имя"
-          value={formData.username}
-          onChange={handleChange}
-        />
-        <br />
-        <br />
-        <input
-          type="email"
-          name="email"
-          placeholder="Email"
-          value={formData.email}
-          onChange={handleChange}
-        />
-        <br />
-        <br />
-        <input
-          type="password"
-          name="password"
-          placeholder="Пароль"
-          value={formData.password}
-          onChange={handleChange}
-        />
-        <br />
-        <br />
-        <button type="submit">Зарегистрироваться</button>
-      </form>
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>Регистрация</h1>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            name="username"
+            placeholder="Имя пользователя"
+            value={formData.username}
+            onChange={handleChange}
+            style={styles.input}
+          />
+          <input
+            type="email"
+            name="email"
+            placeholder="Email"
+            value={formData.email}
+            onChange={handleChange}
+            style={styles.input}
+          />
+          <input
+            type="password"
+            name="password"
+            placeholder="Пароль"
+            value={formData.password}
+            onChange={handleChange}
+            style={styles.input}
+          />
+          <button type="submit" style={styles.button}>
+            Зарегистрироваться
+          </button>
+        </form>
 
-      {message && <p>{message}</p>}
+        {message && (
+          <p
+            style={{
+              ...styles.message,
+              color: message.startsWith("❌") ? "#e74c3c" : "#27ae60",
+            }}
+          >
+            {message}
+          </p>
+        )}
 
-      <p>
-        <Link to="/">Назад на главную</Link>
-      </p>
+        <p style={{ marginTop: "20px", fontSize: "0.9rem", color: "#555" }}>
+          <Link to="/" style={styles.link}>
+            Назад на главную
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

@@ -27,7 +27,7 @@ function Login({ onLogin }: LoginProps) {
       const data = await res.json();
 
       if (res.ok) {
-        onLogin(data.token); // обновляем токен в App
+        onLogin(data.token); // сохраняем токен
         setMessage("✅ Вход выполнен!");
         navigate("/"); // редирект
       } else {
@@ -38,19 +38,72 @@ function Login({ onLogin }: LoginProps) {
     }
   };
 
-  // ✅ return внутри функции
+  const styles = {
+    container: {
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      minHeight: "100vh",
+      backgroundColor: "#f0f2f5",
+      fontFamily: "'Arial', sans-serif",
+    },
+    card: {
+      backgroundColor: "#ffffff",
+      padding: "40px",
+      borderRadius: "12px",
+      boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
+      width: "100%",
+      maxWidth: "400px",
+      textAlign: "center" as const,
+    },
+    title: {
+      fontSize: "2rem",
+      marginBottom: "20px",
+      fontWeight: "bold" as const,
+      color: "#333",
+    },
+    input: {
+      width: "100%",
+      padding: "12px",
+      marginBottom: "15px",
+      borderRadius: "8px",
+      border: "1px solid #ccc",
+      fontSize: "1rem",
+    },
+    button: {
+      width: "100%",
+      padding: "12px",
+      backgroundColor: "#007bff",
+      color: "#fff",
+      border: "none",
+      borderRadius: "8px",
+      fontSize: "1rem",
+      fontWeight: "bold" as const,
+      cursor: "pointer",
+    },
+    message: {
+      marginTop: "15px",
+      fontWeight: "bold" as const,
+    },
+    link: {
+      color: "#007bff",
+      textDecoration: "none",
+      fontWeight: "bold" as const,
+    },
+  };
+
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="bg-white p-10 rounded-xl shadow-lg w-full max-w-md text-center">
-        <h1 className="text-3xl font-bold mb-8 text-gray-800">Вход</h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <div style={styles.container}>
+      <div style={styles.card}>
+        <h1 style={styles.title}>Вход</h1>
+        <form onSubmit={handleSubmit}>
           <input
             type="text"
             name="username"
             placeholder="Имя пользователя"
             value={formData.username}
             onChange={handleChange}
-            className="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={styles.input}
           />
           <input
             type="password"
@@ -58,32 +111,27 @@ function Login({ onLogin }: LoginProps) {
             placeholder="Пароль"
             value={formData.password}
             onChange={handleChange}
-            className="p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            style={styles.input}
           />
-          <button
-            type="submit"
-            className="bg-blue-500 text-white p-3 rounded-lg font-bold hover:bg-blue-600 transition-colors"
-          >
+          <button type="submit" style={styles.button}>
             Войти
           </button>
         </form>
 
         {message && (
           <p
-            className={`mt-5 font-semibold ${
-              message.startsWith("❌") ? "text-red-600" : "text-green-600"
-            }`}
+            style={{
+              ...styles.message,
+              color: message.startsWith("❌") ? "#e74c3c" : "#27ae60",
+            }}
           >
             {message}
           </p>
         )}
 
-        <p className="mt-6 text-gray-600">
+        <p style={{ marginTop: "20px", fontSize: "0.9rem", color: "#555" }}>
           Нет аккаунта?{" "}
-          <Link
-            to="/register"
-            className="text-blue-500 font-semibold hover:underline"
-          >
+          <Link to="/register" style={styles.link}>
             Зарегистрироваться
           </Link>
         </p>
