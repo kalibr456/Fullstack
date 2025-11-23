@@ -1,151 +1,274 @@
-from flask import Blueprint, jsonify, request, current_app
-from app import db
+from flask import Blueprint, jsonify, request
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from app.extensions import db
 from app.models import User
-from functools import wraps
-import jwt
-import datetime
-from flasgger import swag_from
-from werkzeug.security import generate_password_hash, check_password_hash
 
 users_bp = Blueprint('users', __name__, url_prefix='/users')
 
-# 🔹 JWT decorator с передачей current_user
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
-
-        if not token:
-            return jsonify({"error": "Token is missing!"}), 401
-
-        try:
-            data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user = User.query.filter_by(username=data["username"]).first()
-            if not current_user:
-                raise Exception("User not found")
-        except Exception as e:
-            return jsonify({"error": "Token is invalid!", "details": str(e)}), 401
-
-        return f(current_user, *args, **kwargs)
-    return decorated
-
-# 🔹 POST: регистрация
+# ===============================
+# REGISTRATION
+# ===============================
 @users_bp.route('/register', methods=['POST'])
-@swag_from({
-    "tags": ["Пользователи"],
-    "parameters": [
-        {
-            "name": "body",
-            "in": "body",
-            "required": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "username": {"type": "string", "example": "ivan"},
-                    "email": {"type": "string", "example": "ivan@mail.com"},
-                    "password": {"type": "string", "example": "12345"}
-                }
-            }
-        }
-    ],
-    "responses": {
-        "201": {"description": "Пользователь зарегистрирован"},
-        "400": {"description": "Пользователь уже существует или некорректные данные"}
-    }
-})
 def register_user():
+    """
+    Регистрация нового пользователя
+    ---
+    tags:
+      - Users
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - username
+            - email
+            - password
+          properties:
+            username:
+              type: string
+              example: "ivan_sport"
+            email:
+              type: string
+              example: "ivan@example.com"
+            password:
+              type: string
+              example: "secret123"
+    responses:
+      201:
+        description: Пользователь успешно зарегистрирован
+      400:
+        description: Ошибка валидации или пользователь уже существует
+    """
     data = request.json
+    
+    # Проверка входных данных
     if not data or not all(k in data for k in ("username", "email", "password")):
         return jsonify({"error": "Некорректные данные"}), 400
 
-    if User.query.filter_by(username=data['username']).first():
+    if User.query.filter_by(username=data["username"]).first():
         return jsonify({"error": "Пользователь уже существует"}), 400
 
-    hashed_password = generate_password_hash(data['password'], method='pbkdf2:sha256')
-    new_user = User(username=data['username'], email=data['email'], password=hashed_password)
+    if User.query.filter_by(email=data["email"]).first():
+        return jsonify({"error": "Email уже занят"}), 400
+
+    # Создание пользователя
+    new_user = User(username=data["username"], email=data["email"])
+    new_user.set_password(data["password"])
+
     db.session.add(new_user)
     db.session.commit()
-    return jsonify({"message": "Пользователь зарегистрирован!", 
-                    "user": {"username": new_user.username, "email": new_user.email}}), 201
 
-# 🔹 POST: логин
+    return jsonify({
+        "message": "Пользователь зарегистрирован",
+        "user": new_user.to_dict()
+    }), 201
+
+
+# ===============================
+# LOGIN
+# ===============================
 @users_bp.route('/login', methods=['POST'])
-@swag_from({
-    "tags": ["Пользователи"],
-    "parameters": [
-        {
-            "name": "body",
-            "in": "body",
-            "required": True,
-            "schema": {
-                "type": "object",
-                "properties": {
-                    "username": {"type": "string", "example": "ivan"},
-                    "password": {"type": "string", "example": "12345"}
-                }
-            }
-        }
-    ],
-    "responses": {
-        "200": {"description": "Вход успешен, возвращается JWT"},
-        "401": {"description": "Неверный логин или пароль"}
-    }
-})
 def login():
+    """
+    Вход в систему (получение JWT токена)
+    ---
+    tags:
+      - Users
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - username
+            - password
+          properties:
+            username:
+              type: string
+              example: "ivan_sport"
+            password:
+              type: string
+              example: "secret123"
+    responses:
+      200:
+        description: Токен получен успешно
+        schema:
+          properties:
+            message:
+              type: string
+            token:
+              type: string
+      401:
+        description: Неверный логин или пароль
+    """
     data = request.json
-    if not data or not all(k in data for k in ("username", "password")):
-        return jsonify({"error": "Некорректные данные"}), 400
+    user = User.query.filter_by(username=data.get("username")).first()
 
-    user = User.query.filter_by(username=data['username']).first()
-    if not user or not check_password_hash(user.password, data['password']):
+    # Проверка пароля
+    if not user or not user.check_password(data.get("password", "")): 
         return jsonify({"error": "Неверный логин или пароль"}), 401
 
-    token = jwt.encode(
-        {"username": user.username, "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1)},
-        current_app.config['SECRET_KEY'], algorithm="HS256"
-    )
-    return jsonify({"message": "Вход успешен", "token": token})
+    # Генерируем токен (identity - это ID пользователя в строковом формате)
+    access_token = create_access_token(identity=str(user.id))
 
-# 🔹 GET: все пользователи
-@users_bp.route('/', methods=['GET'])
-@token_required
-def get_users(current_user):
-    users = User.query.all()
-    return jsonify({"users": [{"username": u.username, "email": u.email} for u in users]})
+    return jsonify({"message": "Вход успешен", "token": access_token})
 
-# 🔹 GET: профиль пользователя
-@users_bp.route('/<username>', methods=['GET'])
-@token_required
-def user_profile(current_user, username):
-    user = User.query.filter_by(username=username).first()
-    if user:
-        return jsonify({"username": user.username, "email": user.email})
-    return jsonify({"error": "Пользователь не найден"}), 404
 
-# 🔹 PUT: обновление пользователя
-@users_bp.route('/<username>', methods=['PUT'])
-@token_required
-def update_user(current_user, username):
-    data = request.json
-    user = User.query.filter_by(username=username).first()
+# ===============================
+# GET USER PROFILE
+# ===============================
+@users_bp.route('/profile', methods=['GET'])
+@jwt_required()
+def user_profile():
+    """
+    Получить данные своего профиля
+    ---
+    tags:
+      - Users
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Данные профиля
+        schema:
+          properties:
+            id:
+              type: integer
+            username:
+              type: string
+            email:
+              type: string
+            created_at:
+              type: string
+            sections:
+              type: array
+              items:
+                type: object
+      404:
+        description: Пользователь не найден
+    """
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+
     if not user:
         return jsonify({"error": "Пользователь не найден"}), 404
+
+    return jsonify(user.to_dict(include_email=True))
+
+
+# ===============================
+# UPDATE USER
+# ===============================
+@users_bp.route('/profile', methods=['PUT'])
+@jwt_required()
+def update_user():
+    """
+    Обновить данные профиля (Email или Пароль)
+    ---
+    tags:
+      - Users
+    security:
+      - Bearer: []
+    parameters:
+      - in: body
+        name: body
+        schema:
+          type: object
+          properties:
+            email:
+              type: string
+              example: "new_email@example.com"
+            password:
+              type: string
+              example: "new_secret_password"
+    responses:
+      200:
+        description: Данные обновлены
+      404:
+        description: Пользователь не найден
+    """
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+
+    if not user:
+        return jsonify({"error": "Пользователь не найден"}), 404
+
+    data = request.json
     if "email" in data:
         user.email = data["email"]
-    db.session.commit()
-    return jsonify({"username": user.username, "email": user.email})
+    
+    if "password" in data:
+        user.set_password(data["password"])
 
-# 🔹 DELETE: удалить пользователя
-@users_bp.route('/<username>', methods=['DELETE'])
-@token_required
-def delete_user(current_user, username):
-    user = User.query.filter_by(username=username).first()
+    db.session.commit()
+
+    return jsonify(user.to_dict(include_email=True))
+
+
+# ===============================
+# DELETE USER
+# ===============================
+@users_bp.route('/profile', methods=['DELETE'])
+@jwt_required()
+def delete_user():
+    """
+    Удалить свой аккаунт
+    ---
+    tags:
+      - Users
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Аккаунт удален
+      404:
+        description: Пользователь не найден
+    """
+    user_id = get_jwt_identity()
+    user = db.session.get(User, int(user_id))
+
     if not user:
         return jsonify({"error": "Пользователь не найден"}), 404
+
     db.session.delete(user)
     db.session.commit()
-    return jsonify({"message": f"Пользователь {username} удалён"})
+
+    return jsonify({"message": "Ваш аккаунт удалён"})
+
+@users_bp.route('/', methods=['GET'])
+@jwt_required()
+def get_all_users():
+    """
+    Получить список всех участников
+    ---
+    tags:
+      - Users
+    security:
+      - Bearer: []
+    responses:
+      200:
+        description: Список пользователей
+        schema:
+          properties:
+            users:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  username:
+                    type: string
+                  sections:
+                    type: array
+    """
+    # Запрашиваем всех пользователей из БД
+    users = User.query.all()
+    
+    # Возвращаем список словарей
+    return jsonify({
+        "users": [u.to_dict() for u in users]
+    })
