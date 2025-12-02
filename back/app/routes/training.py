@@ -1,7 +1,10 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
-from app.models import Training, Section
+# (!) Добавили DailyAdvice для работы с кэшем ИИ
+from app.models import Training, Section, DailyAdvice 
+# (!) Добавили работу с датами
+from datetime import datetime, date 
 
 training_bp = Blueprint('training', __name__, url_prefix='/training')
 
@@ -86,6 +89,10 @@ def add_training():
               type: string
               description: Заметка
               example: "Было тяжело"
+            date:
+              type: string
+              description: Дата тренировки (необязательно)
+              example: "2023-10-30"
     responses:
       201:
         description: Тренировка создана
@@ -104,15 +111,35 @@ def add_training():
     if not section:
         return jsonify({"error": "Секция не найдена"}), 404
 
+    # (!) Обработка даты: если прислали - используем, если нет - текущее время
+    training_date = datetime.utcnow()
+    if "date" in data and data["date"]:
+        try:
+            # Пытаемся распознать формат ISO (YYYY-MM-DD)
+            training_date = datetime.fromisoformat(data["date"])
+        except ValueError:
+            pass 
+
     new_training = Training(
         user_id=user_id,
         section_id=section.id,
         duration=data.get("duration"),
         intensity=data.get("intensity"),
-        note=data.get("note")
+        note=data.get("note"),
+        date=training_date # (!) Используем вычисленную дату
     )
 
     db.session.add(new_training)
+    
+    # --- СБРОС КЭША ИИ ---
+    # Мы добавили новую тренировку -> старый совет ИИ может быть неактуален.
+    # Удаляем запись из таблицы daily_advice на СЕГОДНЯ.
+    today_advice = DailyAdvice.query.filter_by(user_id=user_id, date=date.today()).first()
+    if today_advice:
+        db.session.delete(today_advice)
+        print(f"🗑️ [Training] Старый совет ИИ удален, так как добавлена новая тренировка.")
+    # ---------------------
+
     db.session.commit()
 
     return jsonify({
@@ -177,6 +204,13 @@ def update_training(training_id):
     if "note" in data:
         training.note = data["note"]
 
+    # --- СБРОС КЭША ИИ ---
+    # Данные изменились -> удаляем старый совет
+    today_advice = DailyAdvice.query.filter_by(user_id=user_id, date=date.today()).first()
+    if today_advice:
+        db.session.delete(today_advice)
+    # ---------------------
+
     db.session.commit()
 
     return jsonify(training.to_dict())
@@ -219,6 +253,14 @@ def delete_training(training_id):
         return jsonify({"error": "Недостаточно прав"}), 403
 
     db.session.delete(training)
+
+    # --- СБРОС КЭША ИИ ---
+    # Тренировка удалена -> удаляем старый совет
+    today_advice = DailyAdvice.query.filter_by(user_id=user_id, date=date.today()).first()
+    if today_advice:
+        db.session.delete(today_advice)
+    # ---------------------
+
     db.session.commit()
     
     return jsonify({"message": "Тренировка удалена"})

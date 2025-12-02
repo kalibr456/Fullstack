@@ -105,3 +105,17 @@ class DiaryEntry(db.Model):
             "note": self.note,
             "created_at": self.created_at.isoformat()
         }
+class DailyAdvice(db.Model):
+    __tablename__ = 'daily_advice'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False) # Дата совета
+    
+    # Сохраняем поля ответа ИИ отдельно
+    status = db.Column(db.String(50))
+    message = db.Column(db.String(500))
+    suggested_intensity = db.Column(db.Integer)
+
+    # Связь, чтобы при удалении юзера удалялись и советы
+    user = db.relationship('User', backref=db.backref('advices', cascade="all, delete-orphan"))

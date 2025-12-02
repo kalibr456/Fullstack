@@ -14,7 +14,7 @@ const AIAdvisor: React.FC = () => {
     const token = localStorage.getItem("token");
     if (!token) return;
 
-    fetch("http://127.0.0.1:5000/ai/recommend", {
+    fetch(`http://127.0.0.1:5000/ai/recommend?t=${new Date().getTime()}`, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
