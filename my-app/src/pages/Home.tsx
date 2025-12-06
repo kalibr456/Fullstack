@@ -1,11 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
-// Убедитесь, что путь правильный.
-// Если файл лежит в src/components/, то путь будет "../components/AIAdvisor"
 import AIAdvisor from "./AIAdvisor";
-// Или import AIAdvisor from "../components/AIAdvisor";
+import { apiFetch } from "./api";
 
-// --- Вспомогательный компонент карточки (оставляем без изменений) ---
 const MenuCard = ({
   to,
   title,
@@ -89,7 +86,6 @@ const MenuCard = ({
   );
 };
 
-// --- Основной компонент страницы ---
 const Home: React.FC = () => {
   return (
     <div

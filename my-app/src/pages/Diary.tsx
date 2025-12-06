@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+// Импортируем нашу обертку
+import { apiFetch } from "./api";
 
 // Тип для Секции (для выпадающего списка)
 interface Section {
@@ -9,7 +11,7 @@ interface Section {
 // Тип для Тренировки (то, что приходит с бэкенда)
 interface TrainingData {
   id: number;
-  section: string; // Имя секции (бэкенд возвращает имя в to_dict)
+  section: string;
   date: string;
   duration: number;
   intensity: number;
@@ -22,7 +24,7 @@ const Training: React.FC = () => {
 
   // Состояние формы
   const [form, setForm] = useState({
-    section_id: "", // Отправляем ID, а не имя
+    section_id: "",
     duration: 30,
     intensity: 5,
     note: "",
@@ -32,25 +34,20 @@ const Training: React.FC = () => {
 
   // 1. Загрузка данных при старте
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setMessage("❌ Вы не авторизованы. Пожалуйста, войдите в систему.");
-      return;
-    }
+    // Нам больше не нужно проверять токен вручную здесь.
+    // Если токена нет или он протух, apiFetch перекинет на логин.
 
-    // Загружаем список секций для выпадающего списка
-    fetch("http://127.0.0.1:5000/sections/")
-      .then((res) => res.json())
-      .then((data) => setSections(data.sections || []))
-      .catch((err) => console.error("Ошибка загрузки секций:", err));
+    // Загружаем список секций
+    apiFetch("/sections/")
+      .then((res: Response) => res.json())
+      .then((data: any) => setSections(data.sections || []))
+      .catch((err: any) => console.error("Ошибка загрузки секций:", err));
 
     // Загружаем тренировки пользователя
-    fetch("http://127.0.0.1:5000/training/", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json())
-      .then((data) => setTrainings(data.trainings || []))
-      .catch((err) => console.error("Ошибка загрузки тренировок:", err));
+    apiFetch("/training/")
+      .then((res: Response) => res.json())
+      .then((data: any) => setTrainings(data.trainings || []))
+      .catch((err: any) => console.error("Ошибка загрузки тренировок:", err));
   }, []);
 
   // 2. Отправка формы
@@ -58,21 +55,16 @@ const Training: React.FC = () => {
     e.preventDefault();
     setMessage(null);
 
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
     if (!form.section_id) {
       setMessage("⚠️ Пожалуйста, выберите секцию");
       return;
     }
 
     try {
-      const res = await fetch("http://127.0.0.1:5000/training/", {
+      // Используем apiFetch
+      const res = await apiFetch("/training/", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // (!) Важно
-        },
+        // Headers (Authorization и Content-Type) добавятся автоматически внутри apiFetch
         body: JSON.stringify({
           section_id: parseInt(form.section_id),
           duration: form.duration,
@@ -84,13 +76,9 @@ const Training: React.FC = () => {
       const data = await res.json();
 
       if (res.ok) {
-        // Добавляем новую тренировку в список (data.training приходит с бэка)
         setTrainings([data.training, ...trainings]);
-        // Сбрасываем форму (кроме секции, для удобства)
         setForm({ ...form, duration: 30, intensity: 5, note: "" });
         setMessage("✅ Тренировка успешно добавлена!");
-
-        // Убираем сообщение через 3 секунды
         setTimeout(() => setMessage(null), 3000);
       } else {
         setMessage(`❌ Ошибка: ${data.error || "Не удалось сохранить"}`);

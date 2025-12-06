@@ -1,3 +1,4 @@
+from datetime import timedelta
 from flask import Flask
 from flask_cors import CORS
 from flasgger import Swagger
@@ -11,6 +12,7 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     app.config['SECRET_KEY'] = '12345'
     app.config['JWT_SECRET_KEY'] = '12345'
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(days=30)
 
     # Настройки Swagger
     swagger_template = {

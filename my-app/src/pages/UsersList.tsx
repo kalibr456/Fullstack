@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+// 1. Импортируем нашу обертку (проверьте путь, если api.ts лежит в src, то путь "../api")
+import { apiFetch } from "./api";
 
 interface Section {
   id: number;
@@ -9,7 +11,7 @@ interface User {
   id: number;
   username: string;
   created_at: string;
-  sections: Section[]; // Секции, в которые записан пользователь
+  sections: Section[];
 }
 
 const UsersList: React.FC = () => {
@@ -18,30 +20,18 @@ const UsersList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setError("Нет токена авторизации");
-      setLoading(false);
-      return;
-    }
-
-    // Запрос на новый эндпоинт
-    fetch("http://127.0.0.1:5000/users/", {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`, // Обязательно отправляем токен
-      },
-    })
-      .then((res) => {
+    // 2. Используем apiFetch.
+    // Он сам подставит токен и сам перекинет на логин, если токен протух.
+    apiFetch("/users/")
+      .then((res: Response) => {
         if (!res.ok) throw new Error("Ошибка загрузки данных");
         return res.json();
       })
-      .then((data) => {
+      .then((data: any) => {
         setUsers(data.users || []);
         setLoading(false);
       })
-      .catch((err) => {
+      .catch((err: any) => {
         console.error(err);
         setError("Не удалось загрузить список участников");
         setLoading(false);
@@ -88,7 +78,7 @@ const UsersList: React.FC = () => {
               transition: "transform 0.2s",
             }}
           >
-            {/* Аватарка (заглушка с первой буквой имени) */}
+            {/* Аватарка */}
             <div
               style={{
                 width: "60px",
@@ -121,7 +111,7 @@ const UsersList: React.FC = () => {
               В клубе с {new Date(user.created_at).toLocaleDateString()}
             </p>
 
-            {/* Список секций пользователя */}
+            {/* Список секций */}
             <div style={{ width: "100%" }}>
               {user.sections && user.sections.length > 0 ? (
                 <div

@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from "react";
+// Убедитесь, что путь правильный (./api или ../api)
+import { apiFetch } from "./api";
 
 interface AIResponse {
   status: string;
@@ -11,41 +13,37 @@ const AIAdvisor: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-
-    fetch(`http://127.0.0.1:5000/ai/recommend?t=${new Date().getTime()}`, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        setAdvice(data);
-        setLoading(false);
+    apiFetch(`/ai/recommend?t=${new Date().getTime()}`)
+      .then((res: Response) => {
+        if (res.ok) {
+          return res.json();
+        }
+        throw new Error("Ошибка при получении данных");
       })
-      .catch((err) => {
+      .then((data: AIResponse) => {
+        if (data) {
+          setAdvice(data);
+          setLoading(false);
+        }
+      })
+      .catch((err: any) => {
         console.error("AI Error:", err);
         setLoading(false);
       });
   }, []);
-
-  if (loading) return null; // Не показываем ничего пока грузится
+  if (loading) return null;
   if (!advice) return null;
 
-  // Выбираем цвет в зависимости от совета
   const getColors = () => {
     switch (advice.status) {
       case "rest":
-        return { bg: "#fef2f2", border: "#fca5a5", icon: "🛌" }; // Красный (отдых)
+        return { bg: "#fef2f2", border: "#fca5a5", icon: "🛌" };
       case "recovery":
-        return { bg: "#fff7ed", border: "#fdba74", icon: "🔋" }; // Оранжевый
+        return { bg: "#fff7ed", border: "#fdba74", icon: "🔋" };
       case "progress":
-        return { bg: "#f0fdf4", border: "#86efac", icon: "🚀" }; // Зеленый
+        return { bg: "#f0fdf4", border: "#86efac", icon: "🚀" };
       default:
-        return { bg: "#eff6ff", border: "#93c5fd", icon: "💡" }; // Синий (стандарт)
+        return { bg: "#eff6ff", border: "#93c5fd", icon: "💡" };
     }
   };
 

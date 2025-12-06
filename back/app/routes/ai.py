@@ -103,7 +103,6 @@ def recommend_load():
             "suggested_intensity": 3
         })
 
-    print(f"🤖 РЕШЕНИЕ PYTHON: {decision['status'].upper()}, Интенсивность: {decision['intensity']}")
 
     # 4. ГЕНЕРАЦИЯ ТЕКСТА (OLLAMA)
     try:

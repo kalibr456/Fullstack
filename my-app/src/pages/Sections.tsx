@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { apiFetch } from "./api";
 
 interface Section {
   id: number;
@@ -12,13 +13,10 @@ const Sections: React.FC = () => {
 
   // 1. GET: Загружаем список всех секций
   useEffect(() => {
-    fetch("http://127.0.0.1:5000/sections/")
-      .then((res) => res.json())
-      .then((data) => {
-        // Проверяем структуру ответа (data.sections)
-        setSections(data.sections || []);
-      })
-      .catch((err) => console.error("Ошибка при загрузке секций:", err));
+    apiFetch("/sections/") // Только путь
+      .then((res: Response) => res.json())
+      .then((data: any) => setSections(data.sections))
+      .catch((err: any) => console.error(err));
   }, []);
 
   // 2. POST: Записаться в секцию
@@ -35,14 +33,11 @@ const Sections: React.FC = () => {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/sections/join", {
+      const response = await apiFetch("/sections/join", {
+        // Используем apiFetch
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          // (!) Самое важное: отправляем токен
-          Authorization: `Bearer ${token}`,
-        },
-        // (!) Отправляем ID секции, как ждет бэкенд
+        // Headers Authorization больше не нужен, apiFetch добавит его сам
+        // Content-Type он тоже добавит сам, если не перезаписывать
         body: JSON.stringify({ section_id: sec.id }),
       });
 
