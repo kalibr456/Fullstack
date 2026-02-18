@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
+// Обновляем интерфейс: onLogin теперь ждет и токен, и роль
 interface LoginProps {
-  onLogin: (token: string) => void;
+  onLogin: (token: string, role: string) => void;
 }
 
 function Login({ onLogin }: LoginProps) {
@@ -16,6 +17,7 @@ function Login({ onLogin }: LoginProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setMessage(""); // Очистка сообщений перед новым запросом
 
     try {
       const res = await fetch("http://127.0.0.1:5000/users/login", {
@@ -27,13 +29,27 @@ function Login({ onLogin }: LoginProps) {
       const data = await res.json();
 
       if (res.ok) {
-        onLogin(data.token); // сохраняем токен
+        // 1. Получаем роль из ответа сервера (или ставим 'user' по умолчанию)
+        const userRole = data.role || "user";
+
+        // 2. Сохраняем в localStorage, чтобы данные остались после перезагрузки
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("role", userRole);
+
+        // 3. Передаем данные "наверх" в App.tsx
+        onLogin(data.token, userRole);
+
         setMessage("✅ Вход выполнен!");
-        navigate("/"); // редирект
+
+        // Небольшая задержка перед редиректом для UX (опционально)
+        setTimeout(() => {
+          navigate("/");
+        }, 500);
       } else {
         setMessage(`❌ ${data.error || "Ошибка авторизации"}`);
       }
-    } catch {
+    } catch (err) {
+      console.error(err);
       setMessage("❌ Ошибка соединения с сервером");
     }
   };
@@ -69,6 +85,7 @@ function Login({ onLogin }: LoginProps) {
       borderRadius: "8px",
       border: "1px solid #ccc",
       fontSize: "1rem",
+      boxSizing: "border-box" as const, // Важно для padding
     },
     button: {
       width: "100%",
@@ -80,6 +97,7 @@ function Login({ onLogin }: LoginProps) {
       fontSize: "1rem",
       fontWeight: "bold" as const,
       cursor: "pointer",
+      transition: "background 0.3s",
     },
     message: {
       marginTop: "15px",
@@ -104,6 +122,7 @@ function Login({ onLogin }: LoginProps) {
             value={formData.username}
             onChange={handleChange}
             style={styles.input}
+            required // Добавлена валидация HTML5
           />
           <input
             type="password"
@@ -112,6 +131,7 @@ function Login({ onLogin }: LoginProps) {
             value={formData.password}
             onChange={handleChange}
             style={styles.input}
+            required // Добавлена валидация HTML5
           />
           <button type="submit" style={styles.button}>
             Войти

@@ -1,7 +1,8 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
-from app.models import Section, User
+from app.models import Section, User, Training
+from app.utils import admin_required # <-- Импортируем декоратор проверки прав
 
 sections_bp = Blueprint('sections', __name__, url_prefix='/sections')
 
@@ -41,13 +42,14 @@ def get_sections():
 
 
 # =====================================
-# POST: добавить новую секцию
+# POST: добавить новую секцию (ТОЛЬКО АДМИН)
 # =====================================
 @sections_bp.route('/', methods=['POST'])
 @jwt_required()
+@admin_required()  # <--- ЗАЩИТА: Только админ
 def add_section():
     """
-    Создать новую секцию
+    Создать новую секцию (Только для Админа)
     ---
     tags:
       - Sections
@@ -73,11 +75,9 @@ def add_section():
         description: Секция успешно создана
       400:
         description: Ошибка валидации или такая секция уже есть
+      403:
+        description: Требуются права администратора
     """
-    # Важное примечание: В реальном приложении здесь стоит проверить, 
-    # является ли пользователь администратором (user.is_admin == True).
-    # Пока доступ разрешен любому авторизованному пользователю.
-    
     data = request.json
     if not data or "name" not in data:
         return jsonify({"error": "Не указано имя секции"}), 400
@@ -97,13 +97,14 @@ def add_section():
 
 
 # =====================================
-# PUT: обновить секцию
+# PUT: обновить секцию (ТОЛЬКО АДМИН)
 # =====================================
 @sections_bp.route('/<int:section_id>', methods=['PUT'])
 @jwt_required()
+@admin_required()  # <--- ЗАЩИТА: Только админ
 def update_section(section_id):
     """
-    Обновить данные секции
+    Обновить данные секции (Только для Админа)
     ---
     tags:
       - Sections
@@ -127,6 +128,8 @@ def update_section(section_id):
     responses:
       200:
         description: Секция обновлена
+      403:
+        description: Требуются права администратора
       404:
         description: Секция не найдена
     """
@@ -147,13 +150,14 @@ def update_section(section_id):
 
 
 # =====================================
-# DELETE: удалить секцию
+# DELETE: удалить секцию (ТОЛЬКО АДМИН)
 # =====================================
 @sections_bp.route('/<int:section_id>', methods=['DELETE'])
 @jwt_required()
+@admin_required()  # <--- ЗАЩИТА: Только админ
 def delete_section(section_id):
     """
-    Удалить секцию
+    Удалить секцию (Только для Админа)
     ---
     tags:
       - Sections
@@ -168,6 +172,8 @@ def delete_section(section_id):
     responses:
       200:
         description: Секция удалена
+      403:
+        description: Требуются права администратора
       404:
         description: Секция не найдена
     """
@@ -175,6 +181,13 @@ def delete_section(section_id):
     
     if not section:
         return jsonify({"error": "Секция не найдена"}), 404
+
+    # Проверка на связанные тренировки перед удалением (Важно!)
+    linked_trainings = Training.query.filter_by(section_id=section.id).first()
+    if linked_trainings:
+        return jsonify({
+            "error": "Нельзя удалить секцию, так как существуют тренировки, привязанные к ней. Удалите их сначала."
+        }), 400
 
     section_name = section.name
     db.session.delete(section)
@@ -184,7 +197,7 @@ def delete_section(section_id):
 
 
 # =====================================
-# POST: Записаться в секцию (Join)
+# POST: Записаться в секцию (Join) - ДОСТУПНО ВСЕМ USER
 # =====================================
 @sections_bp.route('/join', methods=['POST'])
 @jwt_required()
@@ -244,7 +257,7 @@ def join_section():
 
 
 # =====================================
-# POST: Отписаться от секции (Leave)
+# POST: Отписаться от секции (Leave) - ДОСТУПНО ВСЕМ USER
 # =====================================
 @sections_bp.route('/leave', methods=['POST'])
 @jwt_required()

@@ -59,18 +59,26 @@ const NavLink = ({
 };
 
 function App() {
+  // 1. Считываем и токен, и роль из хранилища
   const [token, setToken] = useState<string | null>(
-    localStorage.getItem("token")
+    localStorage.getItem("token"),
   );
+  const [role, setRole] = useState<string | null>(localStorage.getItem("role"));
 
-  const handleLogin = (newToken: string) => {
+  // 2. Обновляем функцию входа: теперь она принимает и роль
+  const handleLogin = (newToken: string, newRole: string) => {
     localStorage.setItem("token", newToken);
+    localStorage.setItem("role", newRole);
     setToken(newToken);
+    setRole(newRole);
   };
 
+  // 3. При выходе очищаем всё
   const handleLogout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("role");
     setToken(null);
+    setRole(null);
   };
 
   return (
@@ -86,8 +94,8 @@ function App() {
         <nav
           style={{
             padding: "1rem 2rem",
-            backgroundColor: "rgba(255, 255, 255, 0.8)", // Полупрозрачный фон
-            backdropFilter: "blur(10px)", // Эффект стекла
+            backgroundColor: "rgba(255, 255, 255, 0.8)",
+            backdropFilter: "blur(10px)",
             borderBottom: "1px solid rgba(0,0,0,0.05)",
             position: "sticky",
             top: 0,
@@ -99,7 +107,7 @@ function App() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center" }}>
-            {/* Логотип / Название */}
+            {/* Логотип */}
             <Link
               to="/"
               style={{
@@ -127,7 +135,9 @@ function App() {
                 <NavLink to="/">Главная</NavLink>
                 <NavLink to="/sections">Секции</NavLink>
                 <NavLink to="/diary">Дневник</NavLink>
-                <NavLink to="/users">Участники</NavLink>
+
+                {/* (!) ПОКАЗЫВАЕМ ТОЛЬКО АДМИНУ */}
+                {role === "admin" && <NavLink to="/users">Участники</NavLink>}
               </div>
             )}
           </div>
@@ -143,7 +153,7 @@ function App() {
                   backgroundColor: "#fee2e2",
                   color: "#ef4444",
                   border: "none",
-                  borderRadius: "9999px", // Овальная кнопка
+                  borderRadius: "9999px",
                   cursor: "pointer",
                   fontWeight: 600,
                   transition: "all 0.2s",
@@ -192,13 +202,19 @@ function App() {
             path="/diary"
             element={token ? <Diary /> : <Navigate to="/login" />}
           />
+
+          {/* (!) ЗАЩИТА МАРШРУТА: Только админ может зайти на /users */}
           <Route
             path="/users"
-            element={token ? <UsersList /> : <Navigate to="/login" />}
+            element={
+              token && role === "admin" ? <UsersList /> : <Navigate to="/" />
+            }
           />
+
           <Route path="/login" element={<Login onLogin={handleLogin} />} />
           <Route path="/register" element={<Register />} />
           <Route path="/about" element={<About />} />
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>

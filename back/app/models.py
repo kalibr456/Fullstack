@@ -17,14 +17,19 @@ class User(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False, index=True)
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(128), nullable=False)
+    
+    # Поле для ролей (RBAC). По умолчанию 'user', может быть 'admin'
+    role = db.Column(db.String(20), default='user', nullable=False)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # связь many-to-many
+    # Связь many-to-many с секциями
     sections = db.relationship('Section', secondary=user_sections, back_populates='users')
 
-    # связь one-to-many: тренировки и записи дневника
+    # Связи one-to-many (каскадное удаление: удаляем юзера -> удаляется всё его содержимое)
     trainings = db.relationship('Training', back_populates='user', cascade="all, delete-orphan")
     diary_entries = db.relationship('DiaryEntry', back_populates='user', cascade="all, delete-orphan")
+    advices = db.relationship('DailyAdvice', back_populates='user', cascade="all, delete-orphan")
 
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
@@ -36,10 +41,12 @@ class User(db.Model):
         d = {
             "id": self.id,
             "username": self.username,
+            "role": self.role,  # Отправляем роль на фронтенд
             "created_at": self.created_at.isoformat()
         }
         if include_email:
             d["email"] = self.email
+        # Возвращаем список секций (кратко)
         d["sections"] = [s.to_dict() for s in self.sections]
         return d
 
@@ -54,7 +61,11 @@ class Section(db.Model):
     users = db.relationship('User', secondary=user_sections, back_populates='sections')
 
     def to_dict(self):
-        return {"id": self.id, "name": self.name, "description": self.description}
+        return {
+            "id": self.id, 
+            "name": self.name, 
+            "description": self.description
+        }
 
 
 class Training(db.Model):
@@ -89,7 +100,7 @@ class DiaryEntry(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    section = db.Column(db.String(120))   # сохраняем текст секции для самостоятельных записей
+    section = db.Column(db.String(120))   # просто текст, не ForeignKey
     date = db.Column(db.Date, nullable=False)
     note = db.Column(db.String(1000))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -105,17 +116,27 @@ class DiaryEntry(db.Model):
             "note": self.note,
             "created_at": self.created_at.isoformat()
         }
+
+
 class DailyAdvice(db.Model):
     __tablename__ = 'daily_advice'
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False) # Дата совета
+    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     
-    # Сохраняем поля ответа ИИ отдельно
-    status = db.Column(db.String(50))
-    message = db.Column(db.String(500))
-    suggested_intensity = db.Column(db.Integer)
+    # Поля ответа ИИ
+    status = db.Column(db.String(50))      # например: beginner, recovery, progress
+    message = db.Column(db.String(500))    # текст совета
+    suggested_intensity = db.Column(db.Integer) # рекомендуемая интенсивность
 
-    # Связь, чтобы при удалении юзера удалялись и советы
-    user = db.relationship('User', backref=db.backref('advices', cascade="all, delete-orphan"))
+    user = db.relationship('User', back_populates='advices')
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "date": self.date.isoformat(),
+            "status": self.status,
+            "message": self.message,
+            "suggested_intensity": self.suggested_intensity
+        }
