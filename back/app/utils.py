@@ -6,9 +6,6 @@ from app.models import User
 from app.extensions import db
 
 def admin_required():
-    """
-    Декоратор для защиты эндпоинтов, доступных только админу.
-    """
     def wrapper(fn):
         @wraps(fn)
         def decorator(*args, **kwargs):

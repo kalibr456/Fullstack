@@ -1,8 +1,8 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import AIAdvisor from "./AIAdvisor";
-import { apiFetch } from "./api";
+import AIAdvisor from "./AIAdvisor"; // Убедитесь, что путь к AIAdvisor верный
 
+// --- Вспомогательный компонент для карточки меню (без изменений) ---
 const MenuCard = ({
   to,
   title,
@@ -86,15 +86,16 @@ const MenuCard = ({
   );
 };
 
+// --- Основной компонент страницы ---
 const Home: React.FC = () => {
   return (
     <div
       style={{
         minHeight: "calc(100vh - 80px)",
         display: "flex",
-        flexDirection: "column", // Важно: располагаем элементы сверху вниз
-        alignItems: "center", // Центрируем по горизонтали
-        justifyContent: "center", // Центрируем по вертикали (если контента мало)
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
         background: "linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)",
         padding: "2rem",
       }}
@@ -104,30 +105,32 @@ const Home: React.FC = () => {
         <div style={{ textAlign: "center", marginBottom: "2rem" }}>
           <h1
             style={{
-              fontSize: "3rem",
+              fontSize: "3.2rem",
               fontWeight: 800,
               color: "#1f2937",
               marginBottom: "1rem",
               letterSpacing: "-0.05em",
             }}
           >
-            Спортцентр
+            SportCenter
           </h1>
           <p
             style={{
               fontSize: "1.1rem",
               color: "#6b7280",
-              maxWidth: "500px",
+              maxWidth: "520px",
               margin: "0 auto",
+              lineHeight: "1.6",
             }}
           >
-            Твой личный помощник в мире спорта. Выбирай секции, следи за
-            прогрессом и достигай новых высот.
+            Твой интеллектуальный помощник в тренировках. Управляй своим
+            прогрессом и получай персональные рекомендации в реальном времени.
           </p>
         </div>
 
-        {/* 2. Блок ИИ Советника (Вставлен сюда!) */}
-        <div style={{ marginBottom: "2rem" }}>
+        {/* 2. Блок ИИ Советника */}
+        {/* Теперь он работает через обновленный api.ts (Axios + Refresh Token) */}
+        <div style={{ marginBottom: "2.5rem", width: "100%" }}>
           <AIAdvisor />
         </div>
 
@@ -144,7 +147,7 @@ const Home: React.FC = () => {
             title="Секции"
             icon="🥊"
             color="#dbeafe"
-            desc="Записывайся на бокс, плавание и другие активности."
+            desc="Просмотр и запись в доступные спортивные группы."
           />
 
           <MenuCard
@@ -152,7 +155,7 @@ const Home: React.FC = () => {
             title="Дневник"
             icon="📅"
             color="#dcfce7"
-            desc="Веди учет своих тренировок и следи за нагрузкой."
+            desc="Календарь тренировок: планирование и история нагрузок."
           />
 
           <MenuCard
@@ -160,21 +163,24 @@ const Home: React.FC = () => {
             title="Участники"
             icon="👥"
             color="#ffedd5"
-            desc="Смотри, кто еще занимается спортом вместе с тобой."
+            desc="Сообщество спортсменов и управление профилями."
           />
         </div>
 
-        {/* 4. Футер ссылка */}
-        <div style={{ marginTop: "3rem", textAlign: "center" }}>
+        {/* 4. Ссылка "О проекте" */}
+        <div style={{ marginTop: "3.5rem", textAlign: "center" }}>
           <Link
             to="/about"
             style={{
-              color: "#6b7280",
+              color: "#9ca3af",
               textDecoration: "none",
               fontSize: "0.9rem",
+              transition: "color 0.2s",
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#4b5563")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
           >
-            Узнать больше о проекте &rarr;
+            Техническая информация о проекте &rarr;
           </Link>
         </div>
       </div>
