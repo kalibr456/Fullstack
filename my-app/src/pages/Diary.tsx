@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { apiFetch } from "./api"; // Проверь путь к api
+import api from "../api"; // Импортируем настроенный axios из Lab 2
 
 // --- ТИПЫ ---
 interface Section {
@@ -20,10 +20,10 @@ const Diary: React.FC = () => {
   // Данные
   const [trainings, setTrainings] = useState<TrainingData[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
-  
+
   // Состояние календаря
-  const [viewDate, setViewDate] = useState(new Date()); // Какой месяц смотрим
-  const [selectedDate, setSelectedDate] = useState(new Date()); // Какой день выбран
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Состояние формы
   const [form, setForm] = useState({
@@ -34,164 +34,249 @@ const Diary: React.FC = () => {
   });
   const [message, setMessage] = useState<string | null>(null);
 
-  // --- ЗАГРУЗКА ДАННЫХ ---
+  // --- ЗАГРУЗКА ДАННЫХ (Используем паттерн Lab 2 с axios) ---
   useEffect(() => {
-    // 1. Секции
-    apiFetch("/sections/")
-      .then((res) => res.json())
-      .then((data) => setSections(data.sections || []))
-      .catch((err) => console.error(err));
+    const loadData = async () => {
+      try {
+        // Загружаем секции и тренировки параллельно
+        const [sectionsRes, trainingsRes] = await Promise.all([
+          api.get("/sections/"),
+          api.get("/training/"),
+        ]);
 
-    // 2. Тренировки
-    apiFetch("/training/")
-      .then((res) => res.json())
-      .then((data) => setTrainings(data.trainings || []))
-      .catch((err) => console.error(err));
+        setSections(sectionsRes.data.sections || []);
+        setTrainings(trainingsRes.data.trainings || []);
+      } catch (err) {
+        console.error("Ошибка загрузки данных дневника:", err);
+      }
+    };
+
+    loadData();
   }, []);
 
   // --- ЛОГИКА КАЛЕНДАРЯ ---
-  
-  // Получить дни в месяце
+
   const getDaysInMonth = (year: number, month: number) => {
     return new Date(year, month + 1, 0).getDate();
   };
 
-  // Получить день недели первого дня месяца (0-6, где 0 - Пн для нас)
   const getFirstDayOfMonth = (year: number, month: number) => {
     const day = new Date(year, month, 1).getDay();
-    // JS возвращает 0 для Воскресенья. Превратим в: 0-Пн ... 6-Вс
     return day === 0 ? 6 : day - 1;
   };
 
-  // Переключение месяцев
   const changeMonth = (offset: number) => {
-    const newDate = new Date(viewDate.setMonth(viewDate.getMonth() + offset));
-    setViewDate(new Date(newDate));
+    const newDate = new Date(
+      viewDate.getFullYear(),
+      viewDate.getMonth() + offset,
+      1,
+    );
+    setViewDate(newDate);
   };
 
-  // Проверка: есть ли тренировка в этот день?
   const hasTraining = (day: number) => {
-    const checkDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
-    return trainings.some(t => new Date(t.date).toDateString() === checkDate.toDateString());
+    const checkDate = new Date(
+      viewDate.getFullYear(),
+      viewDate.getMonth(),
+      day,
+    );
+    return trainings.some(
+      (t) => new Date(t.date).toDateString() === checkDate.toDateString(),
+    );
   };
 
-  // Фильтрация списка для выбранной даты
-  const selectedDayTrainings = trainings.filter(t => 
-    new Date(t.date).toDateString() === selectedDate.toDateString()
+  const selectedDayTrainings = trainings.filter(
+    (t) => new Date(t.date).toDateString() === selectedDate.toDateString(),
   );
 
-  // --- ОТПРАВКА ФОРМЫ ---
+  // --- ОТПРАВКА ФОРМЫ (Пункт 3.2 и 5.3 задания - работа через защищенный api) ---
   const addTraining = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.section_id) return setMessage("⚠️ Выберите секцию");
 
     try {
-      const res = await apiFetch("/training/", {
-        method: "POST",
-        body: JSON.stringify({
-          section_id: parseInt(form.section_id),
-          duration: form.duration,
-          intensity: form.intensity,
-          note: form.note,
-          // Можно добавить дату, если бэкенд поддерживает добавление задним числом
-          // date: selectedDate.toISOString() 
-        }),
+      // Подготавливаем дату с учетом времени, чтобы тренировка упала на нужный день
+      const trainingDate = new Date(selectedDate);
+      trainingDate.setHours(12, 0, 0); // Ставим полдень, чтобы избежать смещения поясов
+
+      const res = await api.post("/training/", {
+        section_id: parseInt(form.section_id),
+        duration: form.duration,
+        intensity: form.intensity,
+        note: form.note,
+        date: trainingDate.toISOString(), // Передаем дату выбранную в календаре
       });
-      const data = await res.json();
-      if (res.ok) {
-        setTrainings([data.training, ...trainings]); // Обновляем список
-        setForm({ ...form, note: "" }); // Чистим форму
-        setMessage("✅ Добавлено!");
+
+      if (res.status === 201 || res.status === 200) {
+        // Добавляем тренировку в начало списка
+        setTrainings([res.data.training, ...trainings]);
+        setForm({ ...form, note: "" });
+        setMessage("✅ Запись сохранена!");
         setTimeout(() => setMessage(null), 3000);
-      } else {
-        setMessage(`❌ Ошибка: ${data.error}`);
       }
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Ошибка сохранения";
+      setMessage(`❌ ${errorMsg}`);
     }
   };
 
   // --- РЕНДЕР ---
-  
-  const daysInMonth = getDaysInMonth(viewDate.getFullYear(), viewDate.getMonth());
-  const firstDayOffset = getFirstDayOfMonth(viewDate.getFullYear(), viewDate.getMonth());
-  const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+  const daysInMonth = getDaysInMonth(
+    viewDate.getFullYear(),
+    viewDate.getMonth(),
+  );
+  const firstDayOffset = getFirstDayOfMonth(
+    viewDate.getFullYear(),
+    viewDate.getMonth(),
+  );
+  const monthNames = [
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+  ];
 
   return (
-    <div style={{ 
-      padding: "2rem", 
-      minHeight: "100vh", 
-      background: "#f3f4f6", 
-      fontFamily: "'Inter', sans-serif" 
-    }}>
-      
-      <div style={{ maxWidth: "1200px", margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 350px", gap: "2rem" }}>
-        
+    <div
+      style={{
+        padding: "2rem",
+        minHeight: "100vh",
+        background: "#f3f4f6",
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1100px",
+          margin: "0 auto",
+          display: "grid",
+          gridTemplateColumns: "1fr 380px",
+          gap: "2rem",
+        }}
+      >
         {/* ЛЕВАЯ КОЛОНКА: КАЛЕНДАРЬ */}
-        <div style={{ background: "white", borderRadius: "24px", padding: "2rem", boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)" }}>
-          
-          {/* Шапка календаря */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
-            <button onClick={() => changeMonth(-1)} style={navBtnStyle}>&lt;</button>
-            <h2 style={{ margin: 0, color: "#1f2937" }}>
+        <div
+          style={{
+            background: "white",
+            borderRadius: "24px",
+            padding: "2rem",
+            boxShadow: "0 10px 25px rgba(0,0,0,0.05)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "2rem",
+            }}
+          >
+            <button onClick={() => changeMonth(-1)} style={navBtnStyle}>
+              &lt;
+            </button>
+            <h2 style={{ margin: 0, color: "#1f2937", fontSize: "1.4rem" }}>
               {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
             </h2>
-            <button onClick={() => changeMonth(1)} style={navBtnStyle}>&gt;</button>
+            <button onClick={() => changeMonth(1)} style={navBtnStyle}>
+              &gt;
+            </button>
           </div>
 
-          {/* Сетка дней недели */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", marginBottom: "1rem", textAlign: "center", fontWeight: "bold", color: "#9ca3af" }}>
-            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(d => <div key={d}>{d}</div>)}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(7, 1fr)",
+              marginBottom: "1rem",
+              textAlign: "center",
+              fontWeight: "bold",
+              color: "#9ca3af",
+            }}
+          >
+            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
+              <div key={d}>{d}</div>
+            ))}
           </div>
 
-          {/* Сетка дат */}
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "10px" }}>
-            {/* Пустые ячейки для сдвига */}
-            {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`empty-${i}`} />)}
-            
-            {/* Дни */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(7, 1fr)",
+              gap: "8px",
+            }}
+          >
+            {Array.from({ length: firstDayOffset }).map((_, i) => (
+              <div key={`empty-${i}`} />
+            ))}
+
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
-              const isSelected = 
-                selectedDate.getDate() === day && 
+              const isSelected =
+                selectedDate.getDate() === day &&
                 selectedDate.getMonth() === viewDate.getMonth() &&
                 selectedDate.getFullYear() === viewDate.getFullYear();
-              
-              const isToday = 
-                new Date().getDate() === day && 
-                new Date().getMonth() === viewDate.getMonth();
+
+              const isToday =
+                new Date().getDate() === day &&
+                new Date().getMonth() === new Date().getMonth() &&
+                new Date().getFullYear() === new Date().getFullYear();
 
               const hasWorkout = hasTraining(day);
 
               return (
-                <div 
+                <div
                   key={day}
-                  onClick={() => setSelectedDate(new Date(viewDate.getFullYear(), viewDate.getMonth(), day))}
+                  onClick={() =>
+                    setSelectedDate(
+                      new Date(
+                        viewDate.getFullYear(),
+                        viewDate.getMonth(),
+                        day,
+                      ),
+                    )
+                  }
                   style={{
-                    height: "50px",
+                    height: "55px",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
                     justifyContent: "center",
                     borderRadius: "12px",
                     cursor: "pointer",
-                    position: "relative",
-                    background: isSelected ? "#2563eb" : (isToday ? "#eff6ff" : "transparent"),
-                    color: isSelected ? "white" : "#374151",
+                    background: isSelected
+                      ? "#2563eb"
+                      : isToday
+                        ? "#eff6ff"
+                        : "transparent",
+                    color: isSelected
+                      ? "white"
+                      : isToday
+                        ? "#2563eb"
+                        : "#374151",
                     fontWeight: isSelected || isToday ? "bold" : "normal",
-                    transition: "all 0.2s"
+                    transition: "all 0.2s",
+                    border:
+                      isToday && !isSelected ? "1px solid #bfdbfe" : "none",
                   }}
                 >
                   {day}
-                  {/* Точка, если была тренировка */}
                   {hasWorkout && (
-                    <div style={{
-                      width: "6px",
-                      height: "6px",
-                      borderRadius: "50%",
-                      background: isSelected ? "white" : "#f59e0b", // Желтая точка
-                      marginTop: "4px"
-                    }} />
+                    <div
+                      style={{
+                        width: "5px",
+                        height: "5px",
+                        borderRadius: "50%",
+                        background: isSelected ? "white" : "#f59e0b",
+                        marginTop: "4px",
+                      }}
+                    />
                   )}
                 </div>
               );
@@ -199,100 +284,213 @@ const Diary: React.FC = () => {
           </div>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА: СПИСОК И ФОРМА */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-          
-          {/* Список за выбранный день */}
-          <div style={{ background: "white", borderRadius: "24px", padding: "1.5rem", boxShadow: "0 4px 10px rgba(0,0,0,0.05)", minHeight: "200px" }}>
-            <h3 style={{ marginTop: 0, color: "#1f2937" }}>
-              {selectedDate.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}
+        {/* ПРАВАЯ КОЛОНКА */}
+        <div
+          style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
+        >
+          {/* Активности дня */}
+          <div
+            style={{
+              background: "white",
+              borderRadius: "24px",
+              padding: "1.5rem",
+              boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
+            }}
+          >
+            <h3
+              style={{
+                marginTop: 0,
+                color: "#1f2937",
+                borderBottom: "1px solid #f3f4f6",
+                paddingBottom: "10px",
+              }}
+            >
+              {selectedDate.toLocaleDateString("ru-RU", {
+                day: "numeric",
+                month: "long",
+              })}
             </h3>
-            
-            {selectedDayTrainings.length === 0 ? (
-              <p style={{ color: "#9ca3af", fontSize: "0.9rem" }}>В этот день тренировок не было.</p>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-                {selectedDayTrainings.map(t => (
-                  <div key={t.id} style={{ padding: "10px", background: "#f3f4f6", borderRadius: "12px" }}>
-                    <div style={{ fontWeight: "bold", color: "#2563eb" }}>{t.section}</div>
-                    <div style={{ fontSize: "0.85rem", color: "#4b5563" }}>⏱ {t.duration} мин | 🔥 {t.intensity}/10</div>
-                    {t.note && <div style={{ fontSize: "0.8rem", fontStyle: "italic", marginTop: "4px" }}>"{t.note}"</div>}
-                  </div>
-                ))}
-              </div>
-            )}
+
+            <div style={{ marginTop: "1rem" }}>
+              {selectedDayTrainings.length === 0 ? (
+                <p
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: "0.9rem",
+                    textAlign: "center",
+                  }}
+                >
+                  Событий не найдено.
+                </p>
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.8rem",
+                  }}
+                >
+                  {selectedDayTrainings.map((t) => (
+                    <div
+                      key={t.id}
+                      style={{
+                        padding: "12px",
+                        background: "#f8fafc",
+                        borderRadius: "12px",
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <div style={{ fontWeight: "bold", color: "#1e40af" }}>
+                        {t.section}
+                      </div>
+                      <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                        ⏱ {t.duration} м | Нагрузка: {t.intensity}
+                      </div>
+                      {t.note && (
+                        <div
+                          style={{
+                            fontSize: "0.8rem",
+                            color: "#475569",
+                            marginTop: "4px",
+                            borderTop: "1px solid #edf2f7",
+                            paddingTop: "4px",
+                          }}
+                        >
+                          {t.note}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Форма добавления */}
-          <div style={{ background: "#2563eb", borderRadius: "24px", padding: "1.5rem", color: "white", boxShadow: "0 10px 20px rgba(37, 99, 235, 0.3)" }}>
-            <h3 style={{ marginTop: 0, marginBottom: "1rem" }}>Добавить запись</h3>
-            <form onSubmit={addTraining} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              
-              <select 
-                value={form.section_id} 
-                onChange={e => setForm({...form, section_id: e.target.value})}
+          {/* Форма добавления (Адаптирована под синий стиль) */}
+          <div
+            style={{
+              background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+              borderRadius: "24px",
+              padding: "1.5rem",
+              color: "white",
+            }}
+          >
+            <h3
+              style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.1rem" }}
+            >
+              Добавить запись
+            </h3>
+            <form
+              onSubmit={addTraining}
+              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+            >
+              <select
+                value={form.section_id}
+                onChange={(e) =>
+                  setForm({ ...form, section_id: e.target.value })
+                }
                 style={inputStyle}
-                required
               >
                 <option value="">Выберите секцию</option>
-                {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {sections.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
               </select>
 
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem" }}>
+              <div
+                style={{
+                  fontSize: "0.8rem",
+                  display: "flex",
+                  justifyContent: "space-between",
+                }}
+              >
                 <span>Время: {form.duration} мин</span>
-                <span>Сила: {form.intensity}/10</span>
+                <span>Интенс: {form.intensity}/10</span>
               </div>
-              
-              <input 
-                type="range" min="10" max="180" step="5" 
-                value={form.duration} onChange={e => setForm({...form, duration: Number(e.target.value)})}
-              />
-              <input 
-                type="range" min="1" max="10" step="1" 
-                value={form.intensity} onChange={e => setForm({...form, intensity: Number(e.target.value)})}
+
+              <input
+                type="range"
+                min="10"
+                max="180"
+                step="5"
+                value={form.duration}
+                onChange={(e) =>
+                  setForm({ ...form, duration: Number(e.target.value) })
+                }
               />
 
-              <input 
-                type="text" 
-                placeholder="Заметка..." 
-                value={form.note} 
-                onChange={e => setForm({...form, note: e.target.value})}
+              <input
+                type="range"
+                min="1"
+                max="10"
+                step="1"
+                value={form.intensity}
+                onChange={(e) =>
+                  setForm({ ...form, intensity: Number(e.target.value) })
+                }
+              />
+
+              <input
+                type="text"
+                placeholder="Комментарий..."
+                value={form.note}
+                onChange={(e) => setForm({ ...form, note: e.target.value })}
                 style={inputStyle}
               />
 
-              <button type="submit" style={{ ...inputStyle, background: "white", color: "#2563eb", fontWeight: "bold", cursor: "pointer", border: "none", marginTop: "10px" }}>
+              <button type="submit" style={btnStyle}>
                 Сохранить
               </button>
-
-              {message && <div style={{ fontSize: "0.8rem", textAlign: "center", marginTop: "5px" }}>{message}</div>}
+              {message && (
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    textAlign: "center",
+                    color: "white",
+                  }}
+                >
+                  {message}
+                </div>
+              )}
             </form>
           </div>
-
         </div>
       </div>
     </div>
   );
 };
 
-// --- СТИЛИ ---
+// Стили
 const navBtnStyle = {
-  background: "#f3f4f6",
-  border: "none",
-  width: "36px",
-  height: "36px",
-  borderRadius: "50%",
+  background: "white",
+  border: "1px solid #e5e7eb",
+  width: "32px",
+  height: "32px",
+  borderRadius: "8px",
   cursor: "pointer",
-  fontWeight: "bold" as const,
-  color: "#374151"
+  color: "#374151",
 };
-
 const inputStyle = {
   width: "100%",
   padding: "10px",
-  borderRadius: "8px",
+  borderRadius: "10px",
   border: "none",
   fontSize: "0.9rem",
-  outline: "none"
+  color: "#1f2937",
+  outline: "none",
+};
+const btnStyle = {
+  width: "100%",
+  padding: "12px",
+  borderRadius: "10px",
+  border: "none",
+  backgroundColor: "white",
+  color: "#2563eb",
+  fontWeight: "bold",
+  cursor: "pointer",
+  marginTop: "10px",
 };
 
 export default Diary;

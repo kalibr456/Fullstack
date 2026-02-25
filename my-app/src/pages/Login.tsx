@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-// Обновляем интерфейс: onLogin теперь ждет и токен, и роль
 interface LoginProps {
   onLogin: (token: string, role: string) => void;
 }
@@ -17,7 +16,7 @@ function Login({ onLogin }: LoginProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage(""); // Очистка сообщений перед новым запросом
+    setMessage("");
 
     try {
       const res = await fetch("http://127.0.0.1:5000/users/login", {
@@ -29,19 +28,22 @@ function Login({ onLogin }: LoginProps) {
       const data = await res.json();
 
       if (res.ok) {
-        // 1. Получаем роль из ответа сервера (или ставим 'user' по умолчанию)
+        // 1. Получаем данные из нового формата ответа (Пункт 3.1 задания)
+        const accessToken = data.access_token;
+        const refreshToken = data.refresh_token;
         const userRole = data.role || "user";
 
-        // 2. Сохраняем в localStorage, чтобы данные остались после перезагрузки
-        localStorage.setItem("token", data.token);
+        // 2. Сохраняем ОБА токена (Пункт 5.2 задания)
+        // Мы используем разные ключи, чтобы Interceptor мог их найти
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("refresh_token", refreshToken);
         localStorage.setItem("role", userRole);
 
-        // 3. Передаем данные "наверх" в App.tsx
-        onLogin(data.token, userRole);
+        // 3. Сообщаем приложению, что вход выполнен
+        onLogin(accessToken, userRole);
 
         setMessage("✅ Вход выполнен!");
 
-        // Небольшая задержка перед редиректом для UX (опционально)
         setTimeout(() => {
           navigate("/");
         }, 500);
@@ -61,7 +63,7 @@ function Login({ onLogin }: LoginProps) {
       alignItems: "center",
       minHeight: "100vh",
       backgroundColor: "#f0f2f5",
-      fontFamily: "'Arial', sans-serif",
+      fontFamily: "'Inter', sans-serif",
     },
     card: {
       backgroundColor: "#ffffff",
@@ -85,12 +87,12 @@ function Login({ onLogin }: LoginProps) {
       borderRadius: "8px",
       border: "1px solid #ccc",
       fontSize: "1rem",
-      boxSizing: "border-box" as const, // Важно для padding
+      boxSizing: "border-box" as const,
     },
     button: {
       width: "100%",
       padding: "12px",
-      backgroundColor: "#007bff",
+      backgroundColor: "#2563eb",
       color: "#fff",
       border: "none",
       borderRadius: "8px",
@@ -104,7 +106,7 @@ function Login({ onLogin }: LoginProps) {
       fontWeight: "bold" as const,
     },
     link: {
-      color: "#007bff",
+      color: "#2563eb",
       textDecoration: "none",
       fontWeight: "bold" as const,
     },
@@ -122,7 +124,7 @@ function Login({ onLogin }: LoginProps) {
             value={formData.username}
             onChange={handleChange}
             style={styles.input}
-            required // Добавлена валидация HTML5
+            required
           />
           <input
             type="password"
@@ -131,7 +133,7 @@ function Login({ onLogin }: LoginProps) {
             value={formData.password}
             onChange={handleChange}
             style={styles.input}
-            required // Добавлена валидация HTML5
+            required
           />
           <button type="submit" style={styles.button}>
             Войти

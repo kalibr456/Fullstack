@@ -15,7 +15,6 @@ import About from "./pages/About";
 import UsersList from "./pages/UsersList";
 import Login from "./pages/Login";
 
-// Компонент для красивой ссылки в меню
 const NavLink = ({
   to,
   children,
@@ -31,7 +30,7 @@ const NavLink = ({
       to={to}
       style={{
         textDecoration: "none",
-        color: isActive ? "#2563eb" : "#4b5563", // Синий если активен, серый если нет
+        color: isActive ? "#2563eb" : "#4b5563",
         fontWeight: isActive ? 700 : 500,
         marginRight: "24px",
         fontSize: "1rem",
@@ -59,13 +58,11 @@ const NavLink = ({
 };
 
 function App() {
-  // 1. Считываем и токен, и роль из хранилища
   const [token, setToken] = useState<string | null>(
     localStorage.getItem("token"),
   );
   const [role, setRole] = useState<string | null>(localStorage.getItem("role"));
 
-  // 2. Обновляем функцию входа: теперь она принимает и роль
   const handleLogin = (newToken: string, newRole: string) => {
     localStorage.setItem("token", newToken);
     localStorage.setItem("role", newRole);
@@ -73,7 +70,6 @@ function App() {
     setRole(newRole);
   };
 
-  // 3. При выходе очищаем всё
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
@@ -90,7 +86,7 @@ function App() {
           minHeight: "100vh",
         }}
       >
-        {/* --- НАВИГАЦИОННАЯ ПАНЕЛЬ --- */}
+        {}
         <nav
           style={{
             padding: "1rem 2rem",
@@ -107,7 +103,7 @@ function App() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center" }}>
-            {/* Логотип */}
+            {}
             <Link
               to="/"
               style={{
@@ -129,14 +125,14 @@ function App() {
               </span>
             </Link>
 
-            {/* Ссылки (показываем только если есть токен) */}
+            {}
             {token && (
               <div style={{ display: "flex" }}>
                 <NavLink to="/">Главная</NavLink>
                 <NavLink to="/sections">Секции</NavLink>
                 <NavLink to="/diary">Дневник</NavLink>
 
-                {/* (!) ПОКАЗЫВАЕМ ТОЛЬКО АДМИНУ */}
+                {}
                 {role === "admin" && <NavLink to="/users">Участники</NavLink>}
               </div>
             )}
@@ -188,7 +184,7 @@ function App() {
           </div>
         </nav>
 
-        {/* --- КОНТЕНТ --- */}
+        {}
         <Routes>
           <Route
             path="/"
@@ -203,7 +199,7 @@ function App() {
             element={token ? <Diary /> : <Navigate to="/login" />}
           />
 
-          {/* (!) ЗАЩИТА МАРШРУТА: Только админ может зайти на /users */}
+          {}
           <Route
             path="/users"
             element={

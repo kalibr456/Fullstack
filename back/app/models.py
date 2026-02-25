@@ -18,18 +18,19 @@ class User(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False, index=True)
     password_hash = db.Column(db.String(128), nullable=False)
     
-    # Поле для ролей (RBAC). По умолчанию 'user', может быть 'admin'
+    # Роль для RBAC (user / admin)
     role = db.Column(db.String(20), default='user', nullable=False)
     
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Связь many-to-many с секциями
+    # Связи
     sections = db.relationship('Section', secondary=user_sections, back_populates='users')
-
-    # Связи one-to-many (каскадное удаление: удаляем юзера -> удаляется всё его содержимое)
     trainings = db.relationship('Training', back_populates='user', cascade="all, delete-orphan")
     diary_entries = db.relationship('DiaryEntry', back_populates='user', cascade="all, delete-orphan")
     advices = db.relationship('DailyAdvice', back_populates='user', cascade="all, delete-orphan")
+    
+    # Связь с токенами (для каскадного удаления при удалении пользователя)
+    tokens = db.relationship('TokenBlocklist', back_populates='user', cascade="all, delete-orphan")
 
     def set_password(self, password: str):
         self.password_hash = generate_password_hash(password)
@@ -41,12 +42,11 @@ class User(db.Model):
         d = {
             "id": self.id,
             "username": self.username,
-            "role": self.role,  # Отправляем роль на фронтенд
+            "role": self.role,  
             "created_at": self.created_at.isoformat()
         }
         if include_email:
             d["email"] = self.email
-        # Возвращаем список секций (кратко)
         d["sections"] = [s.to_dict() for s in self.sections]
         return d
 
@@ -100,7 +100,7 @@ class DiaryEntry(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    section = db.Column(db.String(120))   # просто текст, не ForeignKey
+    section = db.Column(db.String(120))  
     date = db.Column(db.Date, nullable=False)
     note = db.Column(db.String(1000))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -125,10 +125,9 @@ class DailyAdvice(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
     
-    # Поля ответа ИИ
-    status = db.Column(db.String(50))      # например: beginner, recovery, progress
+    status = db.Column(db.String(50))      # beginner, recovery, progress
     message = db.Column(db.String(500))    # текст совета
-    suggested_intensity = db.Column(db.Integer) # рекомендуемая интенсивность
+    suggested_intensity = db.Column(db.Integer) 
 
     user = db.relationship('User', back_populates='advices')
 
@@ -139,4 +138,31 @@ class DailyAdvice(db.Model):
             "status": self.status,
             "message": self.message,
             "suggested_intensity": self.suggested_intensity
+        }
+
+class TokenBlocklist(db.Model):
+    """
+    Хранилище для отозванных или активных токенов.
+    Используется для проверки валидности сессии (Пункт 3.4 лабораторной).
+    """
+    __tablename__ = 'token_blocklist'
+
+    id = db.Column(db.Integer, primary_key=True)
+    jti = db.Column(db.String(36), nullable=False, index=True) # Уникальный ID токена
+    token_type = db.Column(db.String(10), nullable=False)      # 'access' или 'refresh'
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    revoked = db.Column(db.Boolean, default=False)             # Отозван ли токен
+    expires = db.Column(db.DateTime, nullable=False)           # Когда токен протухнет
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', back_populates='tokens')
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "jti": self.jti,
+            "token_type": self.token_type,
+            "revoked": self.revoked,
+            "expires": self.expires.isoformat(),
+            "created_at": self.created_at.isoformat()
         }

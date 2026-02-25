@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-// Убедитесь, что путь правильный (./api или ../api)
-import { apiFetch } from "./api";
+import api from "../api"; // Импортируем настроенный axios из Лабораторной №2
 
 interface AIResponse {
   status: string;
@@ -13,37 +12,40 @@ const AIAdvisor: React.FC = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    apiFetch(`/ai/recommend?t=${new Date().getTime()}`)
-      .then((res: Response) => {
-        if (res.ok) {
-          return res.json();
+    const fetchAdvice = async () => {
+      try {
+        // Используем api.get вместо apiFetch.
+        // Interceptor в api.ts сам добавит заголовок Authorization и обновит токен при необходимости.
+        const res = await api.get("/ai/recommend");
+
+        // В Axios данные лежат сразу в поле data
+        if (res.data) {
+          setAdvice(res.data);
         }
-        throw new Error("Ошибка при получении данных");
-      })
-      .then((data: AIResponse) => {
-        if (data) {
-          setAdvice(data);
-          setLoading(false);
-        }
-      })
-      .catch((err: any) => {
-        console.error("AI Error:", err);
+      } catch (err) {
+        console.error("AI Advisor Error:", err);
+      } finally {
         setLoading(false);
-      });
+      }
+    };
+
+    fetchAdvice();
   }, []);
+
   if (loading) return null;
   if (!advice) return null;
 
+  // Логика выбора цветов в зависимости от статуса рекомендации
   const getColors = () => {
     switch (advice.status) {
       case "rest":
-        return { bg: "#fef2f2", border: "#fca5a5", icon: "🛌" };
+        return { bg: "#fef2f2", border: "#fca5a5", icon: "🛌" }; // Красный (Отдых)
       case "recovery":
-        return { bg: "#fff7ed", border: "#fdba74", icon: "🔋" };
+        return { bg: "#fff7ed", border: "#fdba74", icon: "🔋" }; // Оранжевый (Восстановление)
       case "progress":
-        return { bg: "#f0fdf4", border: "#86efac", icon: "🚀" };
+        return { bg: "#f0fdf4", border: "#86efac", icon: "🚀" }; // Зеленый (Прогресс)
       default:
-        return { bg: "#eff6ff", border: "#93c5fd", icon: "💡" };
+        return { bg: "#eff6ff", border: "#93c5fd", icon: "💡" }; // Синий (Инфо)
     }
   };
 
@@ -61,36 +63,49 @@ const AIAdvisor: React.FC = () => {
         alignItems: "start",
         gap: "1rem",
         boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.05)",
+        transition: "all 0.3s ease",
       }}
     >
-      <div style={{ fontSize: "2rem" }}>{style.icon}</div>
+      <div style={{ fontSize: "2.3rem" }}>{style.icon}</div>
       <div>
-        <h3 style={{ margin: "0 0 0.5rem 0", color: "#1f2937" }}>
-          Рекомендация тренера
+        <h3
+          style={{
+            margin: "0 0 0.5rem 0",
+            color: "#1f2937",
+            fontSize: "1.1rem",
+          }}
+        >
+          Рекомендация ИИ-тренера
         </h3>
         <p
           style={{
-            margin: "0 0 0.5rem 0",
+            margin: "0 0 0.7rem 0",
             color: "#4b5563",
             lineHeight: "1.5",
+            fontSize: "0.95rem",
           }}
         >
           {advice.message}
         </p>
-        <span
-          style={{
-            display: "inline-block",
-            padding: "4px 12px",
-            backgroundColor: "white",
-            borderRadius: "20px",
-            fontSize: "0.85rem",
-            fontWeight: "bold",
-            color: "#374151",
-            border: "1px solid rgba(0,0,0,0.1)",
-          }}
-        >
-          Рекомендуемая интенсивность: {advice.suggested_intensity}/10
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span
+            style={{
+              display: "inline-block",
+              padding: "4px 12px",
+              backgroundColor: "white",
+              borderRadius: "20px",
+              fontSize: "0.85rem",
+              fontWeight: "bold",
+              color: "#374151",
+              border: "1px solid rgba(0,0,0,0.1)",
+            }}
+          >
+            Цель нагрузки: {advice.suggested_intensity}/10
+          </span>
+          <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
+            на основе последних тренировок
+          </span>
+        </div>
       </div>
     </div>
   );

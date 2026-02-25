@@ -2,13 +2,11 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models import Section, User, Training
-from app.utils import admin_required # <-- Импортируем декоратор проверки прав
+from app.utils import admin_required 
 
 sections_bp = Blueprint('sections', __name__, url_prefix='/sections')
 
-# =====================================
-# GET: получить все секции (Публичный доступ)
-# =====================================
+
 @sections_bp.route('/', methods=['GET'])
 def get_sections():
     """
@@ -33,23 +31,18 @@ def get_sections():
                   description:
                     type: string
     """
-    # Можно добавить public access, токен не обязателен для просмотра расписания
     sections = Section.query.all()
-    # Используем метод to_dict() из модели
     return jsonify({
         "sections": [s.to_dict() for s in sections]
     })
 
 
-# =====================================
-# POST: добавить новую секцию (ТОЛЬКО АДМИН)
-# =====================================
 @sections_bp.route('/', methods=['POST'])
 @jwt_required()
-@admin_required()  # <--- ЗАЩИТА: Только админ
+@admin_required() 
 def add_section():
     """
-    Создать новую секцию (Только для Админа)
+    Создать новую секцию 
     ---
     tags:
       - Sections
@@ -95,13 +88,9 @@ def add_section():
     
     return jsonify(new_section.to_dict()), 201
 
-
-# =====================================
-# PUT: обновить секцию (ТОЛЬКО АДМИН)
-# =====================================
 @sections_bp.route('/<int:section_id>', methods=['PUT'])
 @jwt_required()
-@admin_required()  # <--- ЗАЩИТА: Только админ
+@admin_required()  
 def update_section(section_id):
     """
     Обновить данные секции (Только для Админа)
@@ -149,12 +138,9 @@ def update_section(section_id):
     return jsonify(section.to_dict())
 
 
-# =====================================
-# DELETE: удалить секцию (ТОЛЬКО АДМИН)
-# =====================================
 @sections_bp.route('/<int:section_id>', methods=['DELETE'])
 @jwt_required()
-@admin_required()  # <--- ЗАЩИТА: Только админ
+@admin_required() 
 def delete_section(section_id):
     """
     Удалить секцию (Только для Админа)
@@ -196,9 +182,6 @@ def delete_section(section_id):
     return jsonify({"message": f"Секция '{section_name}' удалена"})
 
 
-# =====================================
-# POST: Записаться в секцию (Join) - ДОСТУПНО ВСЕМ USER
-# =====================================
 @sections_bp.route('/join', methods=['POST'])
 @jwt_required()
 def join_section():
@@ -256,9 +239,6 @@ def join_section():
     })
 
 
-# =====================================
-# POST: Отписаться от секции (Leave) - ДОСТУПНО ВСЕМ USER
-# =====================================
 @sections_bp.route('/leave', methods=['POST'])
 @jwt_required()
 def leave_section():

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { apiFetch } from "./api"; // Проверьте правильность пути к api.ts
+// Импортируем наш новый настроенный axios
+import api from "../api";
 
 interface Section {
   id: number;
@@ -11,103 +12,84 @@ const Sections: React.FC = () => {
   const [sections, setSections] = useState<Section[]>([]);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Получаем роль текущего пользователя
   const role = localStorage.getItem("role");
-
-  // Состояние для формы добавления (только для админа)
   const [newSection, setNewSection] = useState({ name: "", description: "" });
 
-  // 1. GET: Загружаем список всех секций
   useEffect(() => {
     loadSections();
   }, []);
 
-  const loadSections = () => {
-    apiFetch("/sections/")
-      .then((res) => res.json())
-      .then((data) => setSections(data.sections || []))
-      .catch((err) => console.error(err));
+  // 1. GET: Загрузка секций
+  const loadSections = async () => {
+    try {
+      const res = await api.get("/sections/");
+      // В axios данные лежат в res.data
+      setSections(res.data.sections || []);
+    } catch (err) {
+      console.error("Ошибка при загрузке секций:", err);
+    }
   };
 
-  // 2. POST: Добавить секцию (Только Админ)
+  // 2. POST: Добавление новой секции (только для админа)
   const handleAddSection = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage(null);
 
     try {
-      const res = await apiFetch("/sections/", {
-        method: "POST",
-        body: JSON.stringify(newSection),
-      });
-      const data = await res.json();
+      // Отправляем объект напрямую, JSON.stringify не нужен
+      const res = await api.post("/sections/", newSection);
 
-      if (res.ok) {
-        setMessage(`✅ Секция '${data.name}' успешно создана!`);
-        setNewSection({ name: "", description: "" }); // Очистить форму
-        loadSections(); // Обновить список
-      } else {
-        setMessage(`❌ Ошибка: ${data.error || "Не удалось создать секцию"}`);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage("❌ Ошибка сети");
+      setMessage(`✅ Секция '${res.data.name}' успешно создана!`);
+      setNewSection({ name: "", description: "" });
+      loadSections();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Не удалось создать секцию";
+      setMessage(`❌ Ошибка: ${errorMsg}`);
     }
   };
 
-  // 3. DELETE: Удалить секцию (Только Админ)
+  // 3. DELETE: Удаление секции (только для админа)
   const handleDeleteSection = async (id: number, name: string) => {
     if (!window.confirm(`Вы уверены, что хотите удалить секцию "${name}"?`))
       return;
     setMessage(null);
 
     try {
-      const res = await apiFetch(`/sections/${id}`, {
-        method: "DELETE",
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setMessage(`✅ Секция удалена`);
-        // Удаляем из локального стейта, чтобы не перезагружать всё
-        setSections(sections.filter((s) => s.id !== id));
-      } else {
-        setMessage(`❌ Ошибка: ${data.error || "Не удалось удалить"}`);
-      }
-    } catch (err) {
-      console.error(err);
-      setMessage("❌ Ошибка сети");
+      await api.delete(`/sections/${id}`);
+      setMessage(`✅ Секция удалена`);
+      setSections(sections.filter((s) => s.id !== id));
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Не удалось удалить";
+      setMessage(`❌ Ошибка: ${errorMsg}`);
     }
   };
 
-  // 4. POST: Записаться в секцию (Обычный пользователь)
+  // 4. POST: Записаться в секцию (для всех пользователей)
   const handleJoin = async (sec: Section) => {
     setMessage(null);
     try {
-      const response = await apiFetch("/sections/join", {
-        method: "POST",
-        body: JSON.stringify({ section_id: sec.id }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(`✅ Вы успешно записались в секцию: ${sec.name}`);
-      } else {
-        setMessage(`❌ Ошибка: ${data.error || "Не удалось записаться"}`);
-      }
-    } catch (err) {
-      console.error("Ошибка сети:", err);
-      setMessage("❌ Произошла ошибка сети");
+      const res = await api.post("/sections/join", { section_id: sec.id });
+      setMessage(`✅ Вы успешно записались в секцию: ${sec.name}`);
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || "Не удалось записаться";
+      setMessage(`❌ Ошибка: ${errorMsg}`);
     }
   };
 
   return (
-    <div style={{ padding: "2rem", minHeight: "100vh", background: "#f8fafc" }}>
-      <h1 style={{ marginBottom: "1.5rem", color: "#1f2937" }}>
+    <div
+      style={{
+        padding: "2rem",
+        minHeight: "100vh",
+        background: "#f8fafc",
+        fontFamily: "'Inter', sans-serif",
+      }}
+    >
+      <h1 style={{ marginBottom: "1.5rem", color: "#1f2937", fontWeight: 800 }}>
         Доступные секции
       </h1>
 
-      {/* Блок сообщений */}
+      {/* Блок уведомлений */}
       {message && (
         <div
           style={{
@@ -115,17 +97,16 @@ const Sections: React.FC = () => {
             marginBottom: "1.5rem",
             backgroundColor: message.startsWith("✅") ? "#dcfce7" : "#fee2e2",
             color: message.startsWith("✅") ? "#166534" : "#991b1b",
-            borderRadius: "8px",
-            border: message.startsWith("✅")
-              ? "1px solid #86efac"
-              : "1px solid #fca5a5",
+            borderRadius: "12px",
+            border: `1px solid ${message.startsWith("✅") ? "#86efac" : "#fca5a5"}`,
+            fontWeight: 500,
           }}
         >
           {message}
         </div>
       )}
 
-      {/* --- ПАНЕЛЬ АДМИНИСТРАТОРА --- */}
+      {/* Админ-панель создания */}
       {role === "admin" && (
         <div
           style={{
@@ -133,10 +114,10 @@ const Sections: React.FC = () => {
             padding: "1.5rem",
             backgroundColor: "#eff6ff",
             border: "2px dashed #3b82f6",
-            borderRadius: "12px",
+            borderRadius: "16px",
           }}
         >
-          <h3 style={{ marginTop: 0, color: "#1e40af" }}>
+          <h3 style={{ marginTop: 0, color: "#1e40af", marginBottom: "1rem" }}>
             🛠 Админ-панель: Добавить секцию
           </h3>
           <form
@@ -145,17 +126,12 @@ const Sections: React.FC = () => {
           >
             <input
               type="text"
-              placeholder="Название (например: Йога)"
+              placeholder="Название (например: Бокс)"
               value={newSection.name}
               onChange={(e) =>
                 setNewSection({ ...newSection, name: e.target.value })
               }
-              style={{
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                flex: 1,
-              }}
+              style={inputStyle}
               required
             />
             <input
@@ -165,91 +141,70 @@ const Sections: React.FC = () => {
               onChange={(e) =>
                 setNewSection({ ...newSection, description: e.target.value })
               }
-              style={{
-                padding: "8px",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                flex: 2,
-              }}
+              style={{ ...inputStyle, flex: 2 }}
             />
-            <button
-              type="submit"
-              style={{
-                padding: "8px 16px",
-                backgroundColor: "#2563eb",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                fontWeight: "bold",
-                cursor: "pointer",
-              }}
-            >
-              Добавить
+            <button type="submit" style={adminBtnStyle}>
+              Создать
             </button>
           </form>
         </div>
       )}
 
-      {/* --- СПИСОК СЕКЦИЙ --- */}
+      {/* Список секций */}
       {sections.length === 0 && (
-        <p style={{ color: "#6b7280" }}>Загрузка списка секций...</p>
+        <p style={{ color: "#6b7280", textAlign: "center" }}>
+          Загрузка списка секций...
+        </p>
       )}
 
-      <div style={{ display: "grid", gap: "1rem" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+          gap: "1.5rem",
+        }}
+      >
         {sections.map((sec) => (
           <div
             key={sec.id}
             style={{
               padding: "1.5rem",
               backgroundColor: "white",
-              borderRadius: "12px",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              borderRadius: "16px",
+              boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
               display: "flex",
+              flexDirection: "column",
               justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "10px",
+              border: "1px solid #f1f5f9",
             }}
           >
-            <div style={{ flex: 1 }}>
+            <div style={{ marginBottom: "1.5rem" }}>
               <h3 style={{ margin: "0 0 0.5rem 0", color: "#111827" }}>
                 {sec.name}
               </h3>
               {sec.description && (
-                <p style={{ margin: 0, color: "#6b7280" }}>{sec.description}</p>
+                <p
+                  style={{
+                    margin: 0,
+                    color: "#64748b",
+                    fontSize: "0.9rem",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {sec.description}
+                </p>
               )}
             </div>
 
-            <div style={{ display: "flex", gap: "10px" }}>
-              {/* Кнопка ЗАПИСАТЬСЯ (видна всем, кроме, возможно, админа, если хотите) */}
-              <button
-                onClick={() => handleJoin(sec)}
-                style={{
-                  padding: "0.5rem 1rem",
-                  backgroundColor: "#3b82f6",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  cursor: "pointer",
-                  fontWeight: "bold",
-                }}
-              >
+            <div style={{ display: "flex", gap: "10px", marginTop: "auto" }}>
+              <button onClick={() => handleJoin(sec)} style={joinBtnStyle}>
                 Записаться
               </button>
 
-              {/* Кнопка УДАЛИТЬ (Только Админ) */}
               {role === "admin" && (
                 <button
                   onClick={() => handleDeleteSection(sec.id, sec.name)}
-                  style={{
-                    padding: "0.5rem 1rem",
-                    backgroundColor: "#ef4444",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                  }}
+                  style={deleteBtnStyle}
                 >
                   Удалить
                 </button>
@@ -260,6 +215,49 @@ const Sections: React.FC = () => {
       </div>
     </div>
   );
+};
+
+// --- Стили ---
+const inputStyle = {
+  padding: "10px 14px",
+  borderRadius: "10px",
+  border: "1px solid #cbd5e1",
+  fontSize: "0.95rem",
+  flex: 1,
+  outline: "none",
+};
+
+const adminBtnStyle = {
+  padding: "10px 20px",
+  backgroundColor: "#2563eb",
+  color: "white",
+  border: "none",
+  borderRadius: "10px",
+  fontWeight: "bold",
+  cursor: "pointer",
+};
+
+const joinBtnStyle = {
+  flex: 1,
+  padding: "10px",
+  backgroundColor: "#3b82f6",
+  color: "white",
+  border: "none",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: 600,
+  fontSize: "0.9rem",
+};
+
+const deleteBtnStyle = {
+  padding: "10px 15px",
+  backgroundColor: "#fee2e2",
+  color: "#ef4444",
+  border: "none",
+  borderRadius: "8px",
+  cursor: "pointer",
+  fontWeight: 600,
+  fontSize: "0.9rem",
 };
 
 export default Sections;
