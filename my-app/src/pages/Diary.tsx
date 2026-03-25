@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import api from "../api"; // Импортируем настроенный axios из Lab 2
+import React, { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
+import api from "../api"; 
 
 // --- ТИПЫ ---
 interface Section {
@@ -14,447 +15,233 @@ interface TrainingData {
   duration: number;
   intensity: number;
   note: string;
+  file_url?: string; 
 }
 
 const Diary: React.FC = () => {
-  // Данные
+  const [searchParams, setSearchParams] = useSearchParams();
   const [trainings, setTrainings] = useState<TrainingData[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Состояние календаря
-  const [viewDate, setViewDate] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const currentPage = parseInt(searchParams.get("page") || "1");
+  const searchQuery = searchParams.get("search") || "";
+  const filterSection = searchParams.get("section_id") || "";
+  const sortQuery = searchParams.get("sort") || "date_desc";
 
-  // Состояние формы
-  const [form, setForm] = useState({
-    section_id: "",
-    duration: 30,
-    intensity: 5,
-    note: "",
-  });
+  const [viewDate, setViewDate] = useState(new Date()); 
+  const [selectedDate, setSelectedDate] = useState(new Date()); 
+  const [form, setForm] = useState({ section_id: "", duration: 30, intensity: 5, note: "" });
+  const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  // --- ЗАГРУЗКА ДАННЫХ (Используем паттерн Lab 2 с axios) ---
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Загружаем секции и тренировки параллельно
-        const [sectionsRes, trainingsRes] = await Promise.all([
-          api.get("/sections/"),
-          api.get("/training/"),
-        ]);
+  const formatDateKey = (d: Date | string) => {
+    const date = new Date(d);
+    return date.toLocaleDateString('sv-SE'); 
+  };
 
-        setSections(sectionsRes.data.sections || []);
-        setTrainings(trainingsRes.data.trainings || []);
-      } catch (err) {
-        console.error("Ошибка загрузки данных дневника:", err);
-      }
-    };
-
-    loadData();
+  // --- ЗАГРУЗКА ---
+  const loadTrainings = useCallback(async (currentParams: URLSearchParams, dateToFilter: Date) => {
+    try {
+      const queryParams = new URLSearchParams(currentParams);
+      queryParams.set("date", formatDateKey(dateToFilter));
+      const res = await api.get(`/training/?${queryParams.toString()}`);
+      setTrainings(res.data.trainings || []);
+      setTotalPages(res.data.pages || 1);
+    } catch (err) {
+      console.error("Ошибка загрузки:", err);
+    }
   }, []);
 
-  // --- ЛОГИКА КАЛЕНДАРЯ ---
+  useEffect(() => {
+    api.get("/sections/").then(res => setSections(res.data.sections || []));
+  }, []);
 
-  const getDaysInMonth = (year: number, month: number) => {
-    return new Date(year, month + 1, 0).getDate();
+  useEffect(() => {
+    loadTrainings(searchParams, selectedDate);
+  }, [searchParams, selectedDate, loadTrainings]);
+
+  const updateFilters = (key: string, value: string) => {
+    const newParams = new URLSearchParams(searchParams);
+    if (value) newParams.set(key, value);
+    else newParams.delete(key);
+    if (key !== "page") newParams.set("page", "1");
+    setSearchParams(newParams);
   };
 
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    const day = new Date(year, month, 1).getDay();
-    return day === 0 ? 6 : day - 1;
-  };
-
-  const changeMonth = (offset: number) => {
-    const newDate = new Date(
-      viewDate.getFullYear(),
-      viewDate.getMonth() + offset,
-      1,
-    );
-    setViewDate(newDate);
-  };
-
-  const hasTraining = (day: number) => {
-    const checkDate = new Date(
-      viewDate.getFullYear(),
-      viewDate.getMonth(),
-      day,
-    );
-    return trainings.some(
-      (t) => new Date(t.date).toDateString() === checkDate.toDateString(),
-    );
-  };
-
-  const selectedDayTrainings = trainings.filter(
-    (t) => new Date(t.date).toDateString() === selectedDate.toDateString(),
-  );
-
-  // --- ОТПРАВКА ФОРМЫ (Пункт 3.2 и 5.3 задания - работа через защищенный api) ---
+  // --- ДОБАВЛЕНИЕ ---
   const addTraining = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.section_id) return setMessage("⚠️ Выберите секцию");
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append("section_id", form.section_id);
+    formData.append("duration", String(form.duration));
+    formData.append("intensity", String(form.intensity));
+    formData.append("note", form.note);
+    formData.append("date", formatDateKey(selectedDate)); 
+    if (file) formData.append("file", file);
 
     try {
-      // Подготавливаем дату с учетом времени, чтобы тренировка упала на нужный день
-      const trainingDate = new Date(selectedDate);
-      trainingDate.setHours(12, 0, 0); // Ставим полдень, чтобы избежать смещения поясов
-
-      const res = await api.post("/training/", {
-        section_id: parseInt(form.section_id),
-        duration: form.duration,
-        intensity: form.intensity,
-        note: form.note,
-        date: trainingDate.toISOString(), // Передаем дату выбранную в календаре
+      const res = await api.post("/training/", formData, {
+        headers: { "Content-Type": "multipart/form-data" }
       });
-
-      if (res.status === 201 || res.status === 200) {
-        // Добавляем тренировку в начало списка
-        setTrainings([res.data.training, ...trainings]);
+      if (res.status === 201) {
+        setMessage("✅ Сохранено!");
         setForm({ ...form, note: "" });
-        setMessage("✅ Запись сохранена!");
+        setFile(null);
+        const freshParams = new URLSearchParams(searchParams);
+        freshParams.set("page", "1");
+        setSearchParams(freshParams);
+        await loadTrainings(freshParams, selectedDate);
         setTimeout(() => setMessage(null), 3000);
       }
     } catch (err: any) {
-      const errorMsg = err.response?.data?.error || "Ошибка сохранения";
-      setMessage(`❌ ${errorMsg}`);
+      setMessage(`❌ Ошибка: ${err.response?.data?.error || "Ошибка"}`);
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  // --- РЕНДЕР ---
-  const daysInMonth = getDaysInMonth(
-    viewDate.getFullYear(),
-    viewDate.getMonth(),
-  );
-  const firstDayOffset = getFirstDayOfMonth(
-    viewDate.getFullYear(),
-    viewDate.getMonth(),
-  );
-  const monthNames = [
-    "Январь",
-    "Февраль",
-    "Март",
-    "Апрель",
-    "Май",
-    "Июнь",
-    "Июль",
-    "Август",
-    "Сентябрь",
-    "Октябрь",
-    "Ноябрь",
-    "Декабрь",
-  ];
+  // --- НОВОЕ: УДАЛЕНИЕ (Пункт 4.1 и 5.3 задания) ---
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("Удалить эту запись и связанный файл?")) return;
+
+    try {
+      const res = await api.delete(`/training/${id}`);
+      if (res.status === 200) {
+        // Обновляем список, удаляя запись из стейта
+        setTrainings(trainings.filter(t => t.id !== id));
+        // Если записей не осталось на странице, перезагружаем данные
+        if (trainings.length === 1 && currentPage > 1) {
+          updateFilters("page", String(currentPage - 1));
+        } else {
+          loadTrainings(searchParams, selectedDate);
+        }
+      }
+    } catch (err) {
+      console.error("Ошибка при удалении:", err);
+      alert("Не удалось удалить запись");
+    }
+  };
+
+  // Логика календаря
+  const currentYear = viewDate.getFullYear();
+  const currentMonth = viewDate.getMonth();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const offset = new Date(currentYear, currentMonth, 1).getDay() === 0 ? 6 : new Date(currentYear, currentMonth, 1).getDay() - 1;
 
   return (
-    <div
-      style={{
-        padding: "2rem",
-        minHeight: "100vh",
-        background: "#f3f4f6",
-        fontFamily: "'Inter', sans-serif",
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1100px",
-          margin: "0 auto",
-          display: "grid",
-          gridTemplateColumns: "1fr 380px",
-          gap: "2rem",
-        }}
-      >
-        {/* ЛЕВАЯ КОЛОНКА: КАЛЕНДАРЬ */}
-        <div
-          style={{
-            background: "white",
-            borderRadius: "24px",
-            padding: "2rem",
-            boxShadow: "0 10px 25px rgba(0,0,0,0.05)",
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "2rem",
-            }}
-          >
-            <button onClick={() => changeMonth(-1)} style={navBtnStyle}>
-              &lt;
-            </button>
-            <h2 style={{ margin: 0, color: "#1f2937", fontSize: "1.4rem" }}>
-              {monthNames[viewDate.getMonth()]} {viewDate.getFullYear()}
-            </h2>
-            <button onClick={() => changeMonth(1)} style={navBtnStyle}>
-              &gt;
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              marginBottom: "1rem",
-              textAlign: "center",
-              fontWeight: "bold",
-              color: "#9ca3af",
-            }}
-          >
-            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => (
-              <div key={d}>{d}</div>
-            ))}
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(7, 1fr)",
-              gap: "8px",
-            }}
-          >
-            {Array.from({ length: firstDayOffset }).map((_, i) => (
-              <div key={`empty-${i}`} />
-            ))}
-
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const day = i + 1;
-              const isSelected =
-                selectedDate.getDate() === day &&
-                selectedDate.getMonth() === viewDate.getMonth() &&
-                selectedDate.getFullYear() === viewDate.getFullYear();
-
-              const isToday =
-                new Date().getDate() === day &&
-                new Date().getMonth() === new Date().getMonth() &&
-                new Date().getFullYear() === new Date().getFullYear();
-
-              const hasWorkout = hasTraining(day);
-
-              return (
-                <div
-                  key={day}
-                  onClick={() =>
-                    setSelectedDate(
-                      new Date(
-                        viewDate.getFullYear(),
-                        viewDate.getMonth(),
-                        day,
-                      ),
-                    )
-                  }
-                  style={{
-                    height: "55px",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    borderRadius: "12px",
-                    cursor: "pointer",
-                    background: isSelected
-                      ? "#2563eb"
-                      : isToday
-                        ? "#eff6ff"
-                        : "transparent",
-                    color: isSelected
-                      ? "white"
-                      : isToday
-                        ? "#2563eb"
-                        : "#374151",
-                    fontWeight: isSelected || isToday ? "bold" : "normal",
-                    transition: "all 0.2s",
-                    border:
-                      isToday && !isSelected ? "1px solid #bfdbfe" : "none",
-                  }}
-                >
-                  {day}
-                  {hasWorkout && (
-                    <div
-                      style={{
-                        width: "5px",
-                        height: "5px",
-                        borderRadius: "50%",
-                        background: isSelected ? "white" : "#f59e0b",
-                        marginTop: "4px",
-                      }}
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+    <div style={{ padding: "2rem", minHeight: "100vh", background: "#f3f4f6", fontFamily: "'Inter', sans-serif" }}>
+      <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
+        
+        {/* ФИЛЬТРЫ */}
+        <div style={{ background: "white", padding: "1.5rem", borderRadius: "20px", marginBottom: "2rem", display: "flex", gap: "1rem", boxShadow: "0 4px 6px rgba(0,0,0,0.05)" }}>
+          <input type="text" placeholder="Поиск в заметках..." value={searchQuery} onChange={(e) => updateFilters("search", e.target.value)} style={inputStyle} />
+          <select value={filterSection} onChange={(e) => updateFilters("section_id", e.target.value)} style={inputStyle}>
+            <option value="">Все секции</option>
+            {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <select value={sortQuery} onChange={(e) => updateFilters("sort", e.target.value)} style={inputStyle}>
+            <option value="date_desc">Сначала новые</option>
+            <option value="date_asc">Сначала старые</option>
+            <option value="intensity_desc">Высокая нагрузка</option>
+          </select>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА */}
-        <div
-          style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}
-        >
-          {/* Активности дня */}
-          <div
-            style={{
-              background: "white",
-              borderRadius: "24px",
-              padding: "1.5rem",
-              boxShadow: "0 4px 10px rgba(0,0,0,0.05)",
-            }}
-          >
-            <h3
-              style={{
-                marginTop: 0,
-                color: "#1f2937",
-                borderBottom: "1px solid #f3f4f6",
-                paddingBottom: "10px",
-              }}
-            >
-              {selectedDate.toLocaleDateString("ru-RU", {
-                day: "numeric",
-                month: "long",
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: "2rem" }}>
+          
+          {/* КАЛЕНДАРЬ */}
+          <div style={{ background: "white", borderRadius: "24px", padding: "2rem", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem" }}>
+              <button onClick={() => setViewDate(new Date(currentYear, currentMonth - 1, 1))} style={navBtnStyle}>&lt;</button>
+              <h2 style={{ margin: 0, color: "#1f2937", textTransform: 'capitalize', fontSize: '1.2rem' }}>
+                {viewDate.toLocaleString('ru', { month: 'long', year: 'numeric' })}
+              </h2>
+              <button onClick={() => setViewDate(new Date(currentYear, currentMonth + 1, 1))} style={navBtnStyle}>&gt;</button>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px" }}>
+              {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(d => <div key={d} style={{ textAlign: 'center', fontWeight: 'bold', color: '#9ca3af', fontSize: '0.8rem' }}>{d}</div>)}
+              {Array(offset).fill(0).map((_, i) => <div key={`off-${i}`} />)}
+              {Array(daysInMonth).fill(0).map((_, i) => {
+                const day = i + 1;
+                const dateObj = new Date(currentYear, currentMonth, day);
+                const isSelected = formatDateKey(dateObj) === formatDateKey(selectedDate);
+                return (
+                  <div key={day} onClick={() => setSelectedDate(dateObj)}
+                    style={{ height: "50px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "12px", cursor: "pointer", background: isSelected ? "#2563eb" : "transparent", color: isSelected ? "white" : "#374151" }}>
+                    {day}
+                  </div>
+                );
               })}
-            </h3>
-
-            <div style={{ marginTop: "1rem" }}>
-              {selectedDayTrainings.length === 0 ? (
-                <p
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "0.9rem",
-                    textAlign: "center",
-                  }}
-                >
-                  Событий не найдено.
-                </p>
-              ) : (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "0.8rem",
-                  }}
-                >
-                  {selectedDayTrainings.map((t) => (
-                    <div
-                      key={t.id}
-                      style={{
-                        padding: "12px",
-                        background: "#f8fafc",
-                        borderRadius: "12px",
-                        border: "1px solid #e2e8f0",
-                      }}
-                    >
-                      <div style={{ fontWeight: "bold", color: "#1e40af" }}>
-                        {t.section}
-                      </div>
-                      <div style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                        ⏱ {t.duration} м | Нагрузка: {t.intensity}
-                      </div>
-                      {t.note && (
-                        <div
-                          style={{
-                            fontSize: "0.8rem",
-                            color: "#475569",
-                            marginTop: "4px",
-                            borderTop: "1px solid #edf2f7",
-                            paddingTop: "4px",
-                          }}
-                        >
-                          {t.note}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
 
-          {/* Форма добавления (Адаптирована под синий стиль) */}
-          <div
-            style={{
-              background: "linear-gradient(135deg, #2563eb, #1d4ed8)",
-              borderRadius: "24px",
-              padding: "1.5rem",
-              color: "white",
-            }}
-          >
-            <h3
-              style={{ marginTop: 0, marginBottom: "1rem", fontSize: "1.1rem" }}
-            >
-              Добавить запись
-            </h3>
-            <form
-              onSubmit={addTraining}
-              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-            >
-              <select
-                value={form.section_id}
-                onChange={(e) =>
-                  setForm({ ...form, section_id: e.target.value })
-                }
-                style={inputStyle}
-              >
-                <option value="">Выберите секцию</option>
-                {sections.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-
-              <div
-                style={{
-                  fontSize: "0.8rem",
-                  display: "flex",
-                  justifyContent: "space-between",
-                }}
-              >
-                <span>Время: {form.duration} мин</span>
-                <span>Интенс: {form.intensity}/10</span>
+          {/* СПИСОК С КНОПКОЙ УДАЛЕНИЯ */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
+            <div style={{ background: "white", borderRadius: "24px", padding: "1.5rem", boxShadow: "0 4px 10px rgba(0,0,0,0.05)" }}>
+              <h3 style={{ marginTop: 0, fontSize: '1.1rem' }}>{selectedDate.toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</h3>
+              
+              <div style={{ minHeight: '100px' }}>
+                {trainings.length === 0 ? (
+                  <p style={{ color: "#9ca3af", fontSize: "0.9rem", textAlign: 'center', marginTop: '20px' }}>Записей не найдено.</p>
+                ) : (
+                  trainings.map(t => (
+                    <div key={t.id} style={{ padding: "12px", background: "#f8fafc", borderRadius: "12px", marginBottom: "10px", border: "1px solid #e2e8f0", position: 'relative' }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ fontWeight: "bold", color: "#1e40af" }}>{t.section}</div>
+                        {/* КНОПКА УДАЛЕНИЯ */}
+                        <button 
+                          onClick={() => handleDelete(t.id)} 
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.1rem', padding: '0 5px', color: '#ef4444' }}
+                          title="Удалить запись"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                      
+                      {t.file_url && (
+                        <a href={t.file_url} target="_blank" rel="noreferrer">
+                          <img 
+                            src={t.file_url} 
+                            alt="отчет" 
+                            style={{ width: "100%", borderRadius: "8px", marginTop: "8px", marginBottom: '8px', objectFit: 'cover', maxHeight: '180px' }} 
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                        </a>
+                      )}
+                      <div style={{ fontSize: "0.8rem", color: "#64748b" }}>⏱ {t.duration} мин | 🔥 {t.intensity}/10</div>
+                      {t.note && <div style={{ fontSize: "0.8rem", marginTop: '5px', fontStyle: 'italic', color: '#4b5563' }}>{t.note}</div>}
+                    </div>
+                  ))
+                )}
               </div>
 
-              <input
-                type="range"
-                min="10"
-                max="180"
-                step="5"
-                value={form.duration}
-                onChange={(e) =>
-                  setForm({ ...form, duration: Number(e.target.value) })
-                }
-              />
+              {/* ПАГИНАЦИЯ */}
+              <div style={{ display: "flex", justifyContent: "center", alignItems: 'center', gap: "15px", marginTop: "1rem", borderTop: '1px solid #eee', paddingTop: '15px' }}>
+                <button disabled={currentPage <= 1} onClick={() => updateFilters("page", String(currentPage - 1))} style={pageBtnStyle}>Назад</button>
+                <span style={{ fontSize: '0.8rem', color: '#6b7280' }}>{currentPage} / {totalPages}</span>
+                <button disabled={currentPage >= totalPages} onClick={() => updateFilters("page", String(currentPage + 1))} style={pageBtnStyle}>Вперед</button>
+              </div>
+            </div>
 
-              <input
-                type="range"
-                min="1"
-                max="10"
-                step="1"
-                value={form.intensity}
-                onChange={(e) =>
-                  setForm({ ...form, intensity: Number(e.target.value) })
-                }
-              />
-
-              <input
-                type="text"
-                placeholder="Комментарий..."
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                style={inputStyle}
-              />
-
-              <button type="submit" style={btnStyle}>
-                Сохранить
-              </button>
-              {message && (
-                <div
-                  style={{
-                    fontSize: "0.8rem",
-                    textAlign: "center",
-                    color: "white",
-                  }}
-                >
-                  {message}
-                </div>
-              )}
-            </form>
+            {/* ФОРМА */}
+            <div style={{ background: "#2563eb", borderRadius: "24px", padding: "1.5rem", color: "white" }}>
+              <form onSubmit={addTraining} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <select value={form.section_id} onChange={e => setForm({...form, section_id: e.target.value})} style={selectStyle}>
+                  <option value="">Выберите секцию</option>
+                  {sections.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+                <input type="text" placeholder="Заметка..." value={form.note} onChange={e => setForm({...form, note: e.target.value})} style={selectStyle} />
+                <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)} style={{ fontSize: "0.8rem" }} />
+                <button type="submit" disabled={isUploading} style={btnStyle}>
+                  {isUploading ? "Загрузка..." : "Сохранить"}
+                </button>
+                {message && <div style={{ fontSize: "0.8rem", textAlign: "center", marginTop: '5px' }}>{message}</div>}
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -462,35 +249,10 @@ const Diary: React.FC = () => {
   );
 };
 
-// Стили
-const navBtnStyle = {
-  background: "white",
-  border: "1px solid #e5e7eb",
-  width: "32px",
-  height: "32px",
-  borderRadius: "8px",
-  cursor: "pointer",
-  color: "#374151",
-};
-const inputStyle = {
-  width: "100%",
-  padding: "10px",
-  borderRadius: "10px",
-  border: "none",
-  fontSize: "0.9rem",
-  color: "#1f2937",
-  outline: "none",
-};
-const btnStyle = {
-  width: "100%",
-  padding: "12px",
-  borderRadius: "10px",
-  border: "none",
-  backgroundColor: "white",
-  color: "#2563eb",
-  fontWeight: "bold",
-  cursor: "pointer",
-  marginTop: "10px",
-};
+const inputStyle = { padding: "10px", borderRadius: "10px", border: "1px solid #e5e7eb", fontSize: "0.9rem", flex: 1, outline: 'none' };
+const selectStyle = { ...inputStyle, border: 'none', width: '100%' };
+const navBtnStyle = { background: "white", border: "1px solid #e5e7eb", width: "32px", height: "32px", borderRadius: "8px", cursor: "pointer" };
+const btnStyle = { padding: "12px", borderRadius: "10px", border: "none", backgroundColor: "white", color: "#2563eb", fontWeight: "bold", cursor: "pointer" };
+const pageBtnStyle = { background: 'white', border: '1px solid #e5e7eb', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem' };
 
 export default Diary;

@@ -14,8 +14,6 @@ const AIAdvisor: React.FC = () => {
   useEffect(() => {
     const fetchAdvice = async () => {
       try {
-        // Используем api.get вместо apiFetch.
-        // Interceptor в api.ts сам добавит заголовок Authorization и обновит токен при необходимости.
         const res = await api.get("/ai/recommend");
 
         // В Axios данные лежат сразу в поле data

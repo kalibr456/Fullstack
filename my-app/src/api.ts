@@ -6,7 +6,6 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// Добавляем Access Token в каждый запрос
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("access_token");
   if (token) {
@@ -15,13 +14,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Перехватчик ошибок (Auto-Refresh)
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // Если сервер ответил 401 (токен протух)
     if (
       (error.response?.status === 401 || error.response?.status === 422) &&
       !originalRequest._retry
@@ -31,7 +28,6 @@ api.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          // Идем за новым access токеном, используя refresh токен
           const res = await axios.post(
             `${API_URL}/users/refresh`,
             {},
