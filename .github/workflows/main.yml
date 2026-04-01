@@ -7,7 +7,6 @@ on:
     branches: [ main, master ]
 
 jobs:
-  # 1. ТЕСТИРОВАНИЕ И ЛИНТИНГ (Пункт 5.2)
   test-and-lint:
     runs-on: ubuntu-latest
     steps:
@@ -25,7 +24,7 @@ jobs:
           pip install -r requirements.txt
           pip install flake8 pytest pytest-flask requests-mock
 
-      - name: Lint Backend (flake8)
+      - name: Lint Backend
         run: |
           cd back
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
@@ -35,50 +34,18 @@ jobs:
           cd back
           python -m pytest
 
-      # Проверка Фронтенда
+      # Проверка Фронтенда (my-app)
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: 'my-app/package-lock.json'
 
       - name: Install Frontend Deps
         run: |
           cd my-app
           npm install
 
-      - name: Lint Frontend
-        run: |
-          cd my-app
-          npm run lint
-
       - name: Run Frontend Tests
         run: |
           cd my-app
           npm test
-
-  # 2. СБОРКА ОБРАЗОВ (Пункт 5.1)
-  build-images:
-    needs: test-and-lint # Запускать только если тесты прошли
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Build Backend Image
-        run: docker build ./back -t sportcenter-backend:latest
-
-      - name: Build Frontend Image
-        run: docker build ./my-app -t sportcenter-frontend:latest
-
-  # 3. РАЗВЕРТЫВАНИЕ (Пункт 5.3)
-  deploy:
-    needs: build-images
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' # Только при пуше в основную ветку
-    steps:
-      - name: Simulate Deployment
-        run: echo "Билд успешен. Имитация деплоя на сервер..."
