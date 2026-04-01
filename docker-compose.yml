@@ -1,0 +1,59 @@
+services:
+  # Хранилище файлов (Лабораторная №3)
+  minio:
+    image: minio/minio
+    container_name: sportcenter_minio
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Консоль (браузер)
+    environment:
+      MINIO_ROOT_USER: ${MINIO_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PASS}
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s # Ускорим проверку для тестов
+      timeout: 5s
+      retries: 5
+    networks:
+      - sport_network  # ОБЯЗАТЕЛЬНО добавить в общую сеть
+
+  # Бэкенд
+  backend:
+    build: ./back
+    container_name: sportcenter_back
+    ports:
+      - "5000:5000"    # Пробрасываем порт для Swagger (apidocs)
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - JWT_SECRET_KEY=${JWT_SECRET}
+      - WEATHER_API_KEY=${WEATHER_KEY}
+      - DATABASE_URL=sqlite:///instance/sportcenter.db
+      # Для Docker-сети бэкенд должен искать Minio по имени сервиса:
+      - MINIO_ENDPOINT=http://minio:9000 
+    volumes:
+      - ./back/instance:/app/instance
+    networks:
+      - sport_network
+
+  # Фронтенд
+  frontend:
+    build: ./my-app 
+    container_name: sportcenter_front
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - sport_network
+
+networks:
+  sport_network:
+    driver: bridge
+
+volumes:
+  minio_data:
