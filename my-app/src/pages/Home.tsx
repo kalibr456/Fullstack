@@ -1,8 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import AIAdvisor from "./AIAdvisor"; // Убедитесь, что путь к AIAdvisor верный
+import AIAdvisor from "./AIAdvisor"; 
+import SEO from "../components/SEO"; // Новый компонент для мета-тегов
+import WeatherWidget from "../components/WeatherWidget"; // Новый компонент для API погоды
 
-// --- Вспомогательный компонент для карточки меню (без изменений) ---
+// --- Вспомогательный компонент для карточки меню ---
 const MenuCard = ({
   to,
   title,
@@ -18,7 +20,7 @@ const MenuCard = ({
 }) => {
   return (
     <Link to={to} style={{ textDecoration: "none", color: "inherit" }}>
-      <div
+      <section
         style={{
           backgroundColor: "white",
           borderRadius: "16px",
@@ -81,7 +83,7 @@ const MenuCard = ({
         >
           {desc}
         </p>
-      </div>
+      </section>
     </Link>
   );
 };
@@ -89,7 +91,7 @@ const MenuCard = ({
 // --- Основной компонент страницы ---
 const Home: React.FC = () => {
   return (
-    <div
+    <main
       style={{
         minHeight: "calc(100vh - 80px)",
         display: "flex",
@@ -100,9 +102,20 @@ const Home: React.FC = () => {
         padding: "2rem",
       }}
     >
+      {/* 1. SEO Оптимизация (Пункт 2.3) */}
+      <SEO 
+        title="Главная" 
+        description="SportCenter — ваш интеллектуальный помощник для тренировок. Следите за прогрессом и получайте рекомендации от ИИ." 
+      />
+
       <div style={{ maxWidth: "800px", width: "100%" }}>
-        {/* 1. Блок заголовка */}
-        <div style={{ textAlign: "center", marginBottom: "2rem" }}>
+        
+        {/* 2. Блок заголовка и Погоды (Пункт 6.1) */}
+        <header style={{ textAlign: "center", marginBottom: "2rem" }}>
+          
+          {/* Сторонний API: Виджет погоды */}
+          <WeatherWidget />
+
           <h1
             style={{
               fontSize: "3.2rem",
@@ -123,18 +136,17 @@ const Home: React.FC = () => {
               lineHeight: "1.6",
             }}
           >
-            Твой интеллектуальный помощник в тренировках. Управляй своим
-            прогрессом и получай персональные рекомендации в реальном времени.
+            Персональный ассистент для ваших спортивных достижений. 
+            Анализируйте нагрузки и достигайте целей быстрее.
           </p>
-        </div>
+        </header>
 
-        {/* 2. Блок ИИ Советника */}
-        {/* Теперь он работает через обновленный api.ts (Axios + Refresh Token) */}
-        <div style={{ marginBottom: "2.5rem", width: "100%" }}>
+        {/* 3. Блок ИИ Советника */}
+        <section style={{ marginBottom: "2.5rem", width: "100%" }}>
           <AIAdvisor />
-        </div>
+        </section>
 
-        {/* 3. Сетка навигации */}
+        {/* 4. Сетка навигации (Семантические блоки section) */}
         <div
           style={{
             display: "grid",
@@ -147,7 +159,7 @@ const Home: React.FC = () => {
             title="Секции"
             icon="🥊"
             color="#dbeafe"
-            desc="Просмотр и запись в доступные спортивные группы."
+            desc="Записывайтесь в спортивные группы и секции."
           />
 
           <MenuCard
@@ -155,7 +167,7 @@ const Home: React.FC = () => {
             title="Дневник"
             icon="📅"
             color="#dcfce7"
-            desc="Календарь тренировок: планирование и история нагрузок."
+            desc="Ведите учет тренировок и следите за историей."
           />
 
           <MenuCard
@@ -163,12 +175,12 @@ const Home: React.FC = () => {
             title="Участники"
             icon="👥"
             color="#ffedd5"
-            desc="Сообщество спортсменов и управление профилями."
+            desc="Смотрите профили других спортсменов сообщества."
           />
         </div>
 
-        {/* 4. Ссылка "О проекте" */}
-        <div style={{ marginTop: "3.5rem", textAlign: "center" }}>
+        {/* 5. Подвал страницы */}
+        <footer style={{ marginTop: "3.5rem", textAlign: "center" }}>
           <Link
             to="/about"
             style={{
@@ -180,11 +192,11 @@ const Home: React.FC = () => {
             onMouseEnter={(e) => (e.currentTarget.style.color = "#4b5563")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#9ca3af")}
           >
-            Техническая информация о проекте &rarr;
+            Подробнее о платформе SportCenter &rarr;
           </Link>
-        </div>
+        </footer>
       </div>
-    </div>
+    </main>
   );
 };
 

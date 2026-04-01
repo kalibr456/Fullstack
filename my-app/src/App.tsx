@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, Suspense, lazy } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -7,14 +7,18 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
-import Home from "./pages/Home";
-import Sections from "./pages/Sections";
-import Diary from "./pages/Diary";
-import Register from "./pages/Register";
-import About from "./pages/About";
-import UsersList from "./pages/UsersList";
-import Login from "./pages/Login";
 
+// ПАТТЕРН: Lazy Loading (Пункт 4.1 задания)
+// Мы заменяем обычные импорты на динамические
+const Home = lazy(() => import("./pages/Home"));
+const Sections = lazy(() => import("./pages/Sections"));
+const Diary = lazy(() => import("./pages/Diary"));
+const Register = lazy(() => import("./pages/Register"));
+const About = lazy(() => import("./pages/About"));
+const UsersList = lazy(() => import("./pages/UsersList"));
+const Login = lazy(() => import("./pages/Login"));
+
+// Компонент для красивой ссылки в меню (остается без изменений)
 const NavLink = ({
   to,
   children,
@@ -39,7 +43,6 @@ const NavLink = ({
       }}
     >
       {children}
-      {/* Подчеркивание для активной ссылки */}
       {isActive && (
         <span
           style={{
@@ -58,9 +61,7 @@ const NavLink = ({
 };
 
 function App() {
-  const [token, setToken] = useState<string | null>(
-    localStorage.getItem("token"),
-  );
+  const [token, setToken] = useState<string | null>(localStorage.getItem("token"));
   const [role, setRole] = useState<string | null>(localStorage.getItem("role"));
 
   const handleLogin = (newToken: string, newRole: string) => {
@@ -86,7 +87,7 @@ function App() {
           minHeight: "100vh",
         }}
       >
-        {}
+        {/* --- НАВИГАЦИЯ --- */}
         <nav
           style={{
             padding: "1rem 2rem",
@@ -103,36 +104,16 @@ function App() {
           }}
         >
           <div style={{ display: "flex", alignItems: "center" }}>
-            {}
-            <Link
-              to="/"
-              style={{
-                textDecoration: "none",
-                marginRight: "40px",
-                display: "flex",
-                alignItems: "center",
-              }}
-            >
+            <Link to="/" style={{ textDecoration: "none", marginRight: "40px", display: "flex", alignItems: "center" }}>
               <div style={{ fontSize: "1.5rem", marginRight: "8px" }}>⚡</div>
-              <span
-                style={{
-                  fontSize: "1.25rem",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                SportCenter
-              </span>
+              <span style={{ fontSize: "1.25rem", fontWeight: 800, color: "#111827" }}>SportCenter</span>
             </Link>
 
-            {}
             {token && (
               <div style={{ display: "flex" }}>
                 <NavLink to="/">Главная</NavLink>
                 <NavLink to="/sections">Секции</NavLink>
                 <NavLink to="/diary">Дневник</NavLink>
-
-                {}
                 {role === "admin" && <NavLink to="/users">Участники</NavLink>}
               </div>
             )}
@@ -154,12 +135,6 @@ function App() {
                   fontWeight: 600,
                   transition: "all 0.2s",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.backgroundColor = "#fecaca")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.backgroundColor = "#fee2e2")
-                }
               >
                 Выйти
               </button>
@@ -174,7 +149,6 @@ function App() {
                     borderRadius: "9999px",
                     cursor: "pointer",
                     fontWeight: 600,
-                    boxShadow: "0 4px 6px rgba(37, 99, 235, 0.2)",
                   }}
                 >
                   Войти
@@ -184,35 +158,30 @@ function App() {
           </div>
         </nav>
 
-        {}
-        <Routes>
-          <Route
-            path="/"
-            element={token ? <Home /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/sections"
-            element={token ? <Sections /> : <Navigate to="/login" />}
-          />
-          <Route
-            path="/diary"
-            element={token ? <Diary /> : <Navigate to="/login" />}
-          />
-
-          {}
-          <Route
-            path="/users"
-            element={
-              token && role === "admin" ? <UsersList /> : <Navigate to="/" />
-            }
-          />
-
-          <Route path="/login" element={<Login onLogin={handleLogin} />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/about" element={<About />} />
-
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
+        {/* --- КОНТЕНТ С ПОДДЕРЖКОЙ ЛЕНИВОЙ ЗАГРУЗКИ --- */}
+        {/* Suspense показывает fallback (индикатор загрузки), пока подгружается файл страницы */}
+        <Suspense fallback={
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '80vh', color: '#6b7280' }}>
+            <div style={{ textAlign: 'center' }}>
+                <h3>Загрузка модуля...</h3>
+                <p>Пожалуйста, подождите</p>
+            </div>
+          </div>
+        }>
+          <Routes>
+            <Route path="/" element={token ? <Home /> : <Navigate to="/login" />} />
+            <Route path="/sections" element={token ? <Sections /> : <Navigate to="/login" />} />
+            <Route path="/diary" element={token ? <Diary /> : <Navigate to="/login" />} />
+            <Route
+              path="/users"
+              element={token && role === "admin" ? <UsersList /> : <Navigate to="/" />}
+            />
+            <Route path="/login" element={<Login onLogin={handleLogin} />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/about" element={<About />} />
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </Suspense>
       </div>
     </Router>
   );
